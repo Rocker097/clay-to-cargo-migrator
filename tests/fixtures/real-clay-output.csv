@@ -1,0 +1,4 @@
+"Company Website","Enrich company","Name","Employee Count","Mid-Size Employee Flag","Employee Fit Status"
+"https://www.notion.so","Notion","Notion",7211,false,"Since the employee count is **7211**, which is **not** between 50 and 1000 inclusive, the result is:
+
+**NOT FIT**"

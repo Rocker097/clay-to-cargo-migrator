@@ -1,0 +1,27 @@
+{
+  "name": "clay-to-cargo-migrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Compile supported ClayMate table configuration into reviewable Cargo workflows and a migration report.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "demo": "node src/cli.ts compile --schema samples/company-qualification.claymate.json --csv samples/companies.csv --name demo_companies --out examples/generated",
+    "compile": "node src/cli.ts compile",
+    "parity": "node src/cli.ts parity",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "cargo-ai project check --dir examples/generated/infra"
+  },
+  "dependencies": {
+    "@cargo-ai/cdk": "1.0.111",
+    "zod": "4.5.2"
+  },
+  "devDependencies": {
+    "@cargo-ai/cli": "1.0.113",
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3"
+  }
+}

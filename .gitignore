@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+**/.cargo-ai/
+**/cargo.state*.json
+**/cargo.state.lock
+**/cargo.state.audit.jsonl
+.DS_Store

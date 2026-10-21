@@ -1,0 +1,158 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-10-21T15:01:08.380Z",
+  "columnCount": 6,
+  "columns": [
+    {
+      "index": 0,
+      "name": "Company Website",
+      "type": "text",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        }
+      }
+    },
+    {
+      "index": 1,
+      "name": "Name",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Enrich company}}?.name",
+        "mappedResultPath": [
+          "name"
+        ]
+      }
+    },
+    {
+      "index": 2,
+      "name": "Employee Count",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "number"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Enrich company}}?.employee_count",
+        "mappedResultPath": [
+          "employee_count"
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "name": "Enrich company",
+      "type": "action",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "json"
+        },
+        "actionKey": "cpj-enrich-company",
+        "actionVersion": 1,
+        "inputsBinding": [
+          {
+            "name": "company_identifier",
+            "formulaText": "{{@Company Website}}"
+          }
+        ],
+        "runAsButton": true
+      }
+    },
+    {
+      "index": 4,
+      "name": "Mid-Size Employee Flag",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "boolean"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Employee Count}} >= 50 && {{@Employee Count}} <= 1000",
+        "formulaPrompt": "\"Return true if Employee Count is between 50 and 1000 inclusive, otherwise false.\""
+      }
+    },
+    {
+      "index": 5,
+      "name": "Employee Fit Status",
+      "type": "action",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "json"
+        },
+        "actionKey": "use-ai",
+        "actionVersion": 1,
+        "inputsBinding": [
+          {
+            "name": "useCase",
+            "formulaText": "\"use-ai\""
+          },
+          {
+            "name": "prompt",
+            "formulaText": "\"Return FIT if the employee count is between 50 and 1000 inclusive; otherwise return NOT FIT. Use only this employee count: \" + Clay.formatForAIPrompt({{@Employee Count}})"
+          },
+          {
+            "name": "temperature"
+          },
+          {
+            "name": "reasoningLevel"
+          },
+          {
+            "name": "reasoningBudget"
+          },
+          {
+            "name": "claygentId"
+          },
+          {
+            "name": "claygentFieldMapping"
+          },
+          {
+            "name": "maxTokens"
+          },
+          {
+            "name": "model",
+            "formulaText": "\"gpt-4o\""
+          },
+          {
+            "name": "maxCostInCents"
+          },
+          {
+            "name": "jsonMode"
+          },
+          {
+            "name": "systemPrompt"
+          },
+          {
+            "name": "answerSchemaType",
+            "formulaMap": {
+              "type": "\"json\"",
+              "fields": "{\"response\":{\"type\":\"string\"}}"
+            }
+          },
+          {
+            "name": "tableExamples"
+          },
+          {
+            "name": "stopSequence"
+          },
+          {
+            "name": "runBudget",
+            "formulaText": "1"
+          },
+          {
+            "name": "topP"
+          },
+          {
+            "name": "contextDocumentIds"
+          },
+          {
+            "name": "mcpSettings"
+          }
+        ]
+      }
+    }
+  ]
+}
