@@ -1,0 +1,127 @@
+{
+  "formatVersion": 1,
+  "name": "demo_companies",
+  "columnCount": 6,
+  "supported": 4,
+  "review": 2,
+  "blocked": 0,
+  "readyToGenerate": true,
+  "columns": [
+    {
+      "name": "Company Website",
+      "sourceType": "text",
+      "cargoColumn": "company_website",
+      "executionOrder": 1,
+      "dependencies": [],
+      "status": "supported",
+      "kind": "input",
+      "notes": [],
+      "verification": []
+    },
+    {
+      "name": "Enrich company",
+      "sourceType": "action",
+      "cargoColumn": "enrich_company",
+      "executionOrder": 2,
+      "dependencies": [
+        "Company Website"
+      ],
+      "status": "review",
+      "kind": "action",
+      "adapter": "company-from-domain",
+      "targetAction": "linkedin.enrichCompanyFromDomain",
+      "notes": [
+        "Provider swap: Clay used `cpj-enrich-company`; Cargo runs `linkedin.enrichCompanyFromDomain` for this job (Enrich company from domain)."
+      ],
+      "verification": []
+    },
+    {
+      "name": "Name",
+      "sourceType": "formula",
+      "cargoColumn": "name",
+      "executionOrder": 3,
+      "dependencies": [
+        "Enrich company"
+      ],
+      "status": "supported",
+      "kind": "body-formula",
+      "formula": "{{@Enrich company}}?.name",
+      "notes": [
+        "Computed in the play after the columns it reads: `{{@Enrich company}}?.name`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Employee Count",
+      "sourceType": "formula",
+      "cargoColumn": "employee_count",
+      "executionOrder": 4,
+      "dependencies": [
+        "Enrich company"
+      ],
+      "status": "supported",
+      "kind": "body-formula",
+      "formula": "{{@Enrich company}}?.employee_count",
+      "notes": [
+        "Computed in the play after the columns it reads: `{{@Enrich company}}?.employee_count`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Mid-Size Employee Flag",
+      "sourceType": "formula",
+      "cargoColumn": "mid_size_employee_flag",
+      "executionOrder": 5,
+      "dependencies": [
+        "Employee Count"
+      ],
+      "status": "supported",
+      "kind": "body-formula",
+      "formula": "{{@Employee Count}} >= 50 && {{@Employee Count}} <= 1000",
+      "notes": [
+        "Computed in the play after the columns it reads: `{{@Employee Count}} >= 50 && {{@Employee Count}} <= 1000`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Employee Fit Status",
+      "sourceType": "action",
+      "cargoColumn": "employee_fit_status",
+      "executionOrder": 6,
+      "dependencies": [
+        "Employee Count"
+      ],
+      "status": "review",
+      "kind": "ai",
+      "notes": [
+        "Clay AI column becomes a Cargo agent with a JSON answer, wrapped in a tool. Prompt carried over with column references wired in."
+      ],
+      "verification": [
+        "Agent for \"Employee Fit Status\" uses a placeholder `languageModel`. Set it to a model on the workspace's Anthropic connector (run `npm run types` to get the typed list).",
+        "AI provider/model and output field shape are adapted, not preserved: configure them before asserting parity. Clay formatting support is limited to primitive values."
+      ]
+    }
+  ],
+  "availableAdapters": [
+    {
+      "id": "company-from-domain",
+      "job": "Enrich company from domain"
+    },
+    {
+      "id": "person-from-linkedin",
+      "job": "Enrich person from LinkedIn URL"
+    },
+    {
+      "id": "find-email-prospeo",
+      "job": "Find work email from name + domain (Prospeo)"
+    },
+    {
+      "id": "find-email",
+      "job": "Find work email from name + domain"
+    },
+    {
+      "id": "verify-email",
+      "job": "Verify / validate email"
+    }
+  ]
+}

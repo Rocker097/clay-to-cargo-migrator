@@ -1,6 +1,6 @@
 # Clay-to-Cargo Migration Compiler
 
-A working prototype for engineers moving supported Clay workflows into Cargo. It reads a ClayMate schema, generates reviewable Cargo TypeScript, and reports provider substitutions, dropped inputs and unsupported columns.
+A working prototype for engineers moving supported Clay workflows into Cargo. It reads a ClayMate schema, generates reviewable Cargo TypeScript, and inspects arbitrary column layouts, reports provider substitutions and blocks unresolved logic before generation.
 
 **Real test:** a six-column Clay table was exported through ClayMate, compiled and run in Cargo. A hand-built implementation following Cargo's migration recipe also ran. Both saved matching company name, employee count, size flag and AI decision for one company. [Read the comparison](docs/REAL_CLAY_COMPARISON.md).
 
@@ -52,6 +52,35 @@ npm run compile -- \
 
 Use a new output folder: generation overwrites files at matching paths. It emits resources and scripts, not a full Cargo scaffold or deployment state.
 
+## Inspect first, then migrate
+
+Column names and counts are discovered from the schema. Dependencies determine execution order, not display order. The compiler does not infer hidden workflow logic from CSV values.
+
+```bash
+npm run inspect -- --schema /path/to/table.claymate.json --out inspection.json
+npm run compile -- --schema /path/to/table.claymate.json --name my_table --out /path/to/new-output-folder
+```
+
+The inspection lists every column, dependency, target action, original formula/condition, and status:
+
+- `supported`: translated using supported rules.
+- `review`: generated with a provider substitution or configuration requiring verification. This does not establish semantic parity.
+- `blocked`: unsupported operation, missing dependency, unrecognized action input or unknown output field.
+
+Compilation stops before writing files if any column is blocked. Resolve the schema or mapping first. `--allow-partial` explicitly generates an incomplete draft, with all omissions recorded. CRM writes and source steps also block a complete migration; they are not silently skipped. Duplicate column names and cycles fail validation.
+
+### Reuse an adapter for an unfamiliar action key
+
+If an unfamiliar Clay action performs a supported operation with compatible inputs, select a reviewed adapter in a JSON file:
+
+```json
+{"actions":{"your-provider-company-lookup":"company-from-domain"}}
+```
+
+Pass `--mappings /path/to/mappings.json` to both inspection and compilation. Available adapter IDs appear in the inspection. Matches are exact action keys, not column labels. This selects an existing adapter; it does not automatically add a new provider signature or implement arbitrary logic. Check its input and output semantics. New operations still need a verified adapter in `src/mappings.ts` and tests.
+
+Local tests exercise 1, 7, 100 and 1,000 columns, reversed display order, renamed fields, dependency propagation, custom action aliases and blocked generation. These are compiler tests, not evidence of Cargo platform capacity or live parity for those schemas. The live six-column pilot below remains the only live comparison.
+
 ## Mapping
 
 | Clay concept | Cargo output |
@@ -63,8 +92,8 @@ Use a new output folder: generation overwrites files at matching paths. It emits
 | Separate conditional email rungs | Explicit fallback dependencies |
 | Supported result formula | Expression saved by the play |
 | AI column | Agent plus wrapper tool |
-| CRM write | Omitted and reported |
-| Unsupported action or formula | Manual-review report entry |
+| CRM write | Blocks complete generation; omitted only in an explicit partial draft |
+| Unsupported action or formula | Blocks complete generation with an explanation |
 
 Provider substitutions can change results. AI model, settings and answer schema are adaptations requiring review; arbitrary AI settings are not preserved. The generated agent uses an Anthropic model that must be available in the destination workspace.
 

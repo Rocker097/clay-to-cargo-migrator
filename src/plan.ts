@@ -18,6 +18,7 @@
 import { cargoColumnType, type ClayColumn, type ClaySchema } from "./claymate.ts";
 import { emitBody, emitLoader, FormulaError, parseFormula, refsOf, type Node } from "./formula.ts";
 import {
+  ACTION_MAPPINGS,
   clayProviderOf,
   findMapping,
   isAiAction,
@@ -88,7 +89,12 @@ export interface MigrationPlan {
 
 class Blocked extends Error {}
 
-export function planMigration(schema: ClaySchema, name: string): MigrationPlan {
+export interface MappingOverrides {
+  /** Exact Clay action key to an existing verified mapping ID. */
+  actions?: Record<string, string>;
+}
+
+export function planMigration(schema: ClaySchema, name: string, overrides: MappingOverrides = {}): MigrationPlan {
   const slugs = new SlugRegistry(["clay_row_id", "migrated_at", "migration_status"]);
   const byName = new Map<string, PlannedColumn>();
   const columns: PlannedColumn[] = [];
@@ -118,7 +124,7 @@ export function planMigration(schema: ClaySchema, name: string): MigrationPlan {
       } else if (clay.type === "formula") {
         planFormula(col, byName);
       } else if (clay.type === "action") {
-        planAction(col, byName);
+        planAction(col, byName, overrides);
       } else {
         col.notes.push(`Unknown Clay column type "${clay.type}".`);
       }
@@ -171,13 +177,14 @@ function outputField(dep: PlannedColumn, path: string[], from: PlannedColumn): s
   if (path.length === 0) return dep.mapping?.primaryField ?? (dep.kind === "ai" ? "answer" : "raw");
   if (path.length > 1) throw new Blocked(`Reads nested field "${path.join(".")}" from "${dep.clay.name}"; only one level is supported.`);
   const clayField = path[0];
-  if (dep.kind === "ai") return clayField === "answer" ? "answer" : "answer";
+  if (dep.kind === "ai") {
+    if (clayField !== "answer") throw new Blocked(`AI output field "${clayField}" is not supported; only answer is available.`);
+    return "answer";
+  }
   const m = dep.mapping!;
   const cargoField = m.fieldSynonyms[clayField] ?? clayField;
   if (!(cargoField in m.knownOutputs) && cargoField !== m.primaryField) {
-    from.verify.push(
-      `"${dep.clay.name}" output field \`${cargoField}\` is assumed to exist on \`${m.connector.integration}.${m.action}\`. Check with \`cargo-ai orchestration action get-output-schema --action '{"kind":"connector","integrationSlug":"${m.connector.integration}","actionSlug":"${m.action}"}'\`.`,
-    );
+    throw new Blocked(`Unknown output field "${cargoField}" on "${dep.clay.name}". Add a verified adapter field mapping.`);
   }
   return cargoField;
 }
@@ -225,7 +232,7 @@ function planFormula(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
   col.generated = true;
 }
 
-function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
+function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, overrides: MappingOverrides) {
   const ts = col.clay.typeSettings ?? {};
   const actionKey = (ts.actionKey ?? "").toLowerCase();
 
@@ -237,8 +244,10 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
     return;
   }
 
-  const ai = isAiAction(actionKey);
-  const mapping = ai ? undefined : findMapping(actionKey);
+  const ai = !overrides.actions?.[ts.actionKey ?? ""] && isAiAction(actionKey);
+  const override = overrides.actions?.[ts.actionKey ?? ""];
+  const mapping = override ? ACTION_MAPPINGS.find(m => m.id === override) : ai ? undefined : findMapping(actionKey);
+  if (override && !mapping) throw new Error(`Unknown mapping ID: ${override}`);
 
   if (!ai && !mapping) {
     const known = KNOWN_UNVERIFIED.find((k) => k.match(actionKey));
@@ -285,7 +294,7 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
       col.actionArgs.push({ cargoField: p.cargoField, param: p.cargoField });
     }
     for (const b of bindings) {
-      if (!used.has(b.name)) col.notes.push(`Clay input "${b.name}" has no matching field on the Cargo action and was dropped.`);
+      if (!used.has(b.name)) throw new Blocked(`Clay input "${b.name}" has no matching field on the Cargo action; refusing to drop configuration.`);
     }
   } else {
     // AI column: the prompt is text with {{@Column}} references in it.

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // clay-to-cargo: compile a Clay table into a deployable Cargo project.
 //
-//   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>]
+//   inspect --schema <claymate.json> [--mappings <mappings.json>] [--out <inspection.json>]
+//   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
 //   parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--name <table>] [--id-column <col>]
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -13,6 +14,7 @@ import { emitProject } from "./emit.ts";
 import { slugify } from "./naming.ts";
 import { runParity } from "./parity.ts";
 import { planMigration } from "./plan.ts";
+import { inspectPlan, parseOverrides } from "./inspect.ts";
 import { buildReport } from "./report.ts";
 
 function arg(name: string): string | undefined {
@@ -31,21 +33,35 @@ function need(name: string): string {
 
 const command = process.argv[2];
 
-if (command === "compile") {
+if (command === "compile" || command === "inspect") {
   const schemaPath = need("schema");
-  const out = need("out");
+  const out = command === "compile" ? need("out") : arg("out");
   const name = slugify(arg("name") ?? basename(schemaPath).replace(/\.(claymate\.)?json$/, ""), 24);
   const schema = parseClaySchema(readFileSync(schemaPath, "utf8"));
   const csv = arg("csv");
   const rowCount = csv ? parseCsv(readFileSync(csv, "utf8")).rows.length : undefined;
 
-  const plan = planMigration(schema, name);
+  const mappingFile = arg("mappings");
+  const plan = planMigration(schema, name, mappingFile ? parseOverrides(readFileSync(mappingFile, "utf8")) : {});
+  const inspection = inspectPlan(plan);
+  if (command === "inspect") {
+    const json = JSON.stringify(inspection, null, 2) + "\n";
+    if (out) { mkdirSync(dirname(out), { recursive: true }); writeFileSync(out, json); }
+    console.log(json);
+    process.exit(0);
+  }
+  if (!inspection.readyToGenerate && !process.argv.includes("--allow-partial")) {
+    console.error(JSON.stringify(inspection, null, 2));
+    console.error("Generation stopped: unresolved columns. Run inspect, add mappings, or explicitly use --allow-partial for a draft.");
+    process.exit(2);
+  }
   const files = emitProject(plan);
+  files.push({ path: "migrations/" + name + "-inspection.json", content: JSON.stringify(inspection, null, 2) + "\n" });
   const report = buildReport(plan, { rowCount, schemaPath });
   files.push({ path: `migrations/clay-${name.replace(/_/g, "-")}/MIGRATION_REPORT.md`, content: report });
 
   for (const f of files) {
-    const p = join(out, f.path);
+    const p = join(out!, f.path);
     mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, f.content);
   }
@@ -58,7 +74,7 @@ if (command === "compile") {
   }
   console.log(`\n  + migrated   ~ left out on purpose   ! needs manual review`);
   console.log(`\nWrote ${files.length} files to ${out}`);
-  console.log(`Report: ${join(out, files[files.length - 1].path)}`);
+  console.log(`Report: ${join(out!, files[files.length - 1].path)}`);
 } else if (command === "parity") {
   const schemaPath = need("schema");
   const name = slugify(arg("name") ?? basename(schemaPath).replace(/\.(claymate\.)?json$/, ""), 24);
@@ -70,7 +86,8 @@ if (command === "compile") {
 } else {
   console.log(`clay-to-cargo
 
-  compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>]
+  inspect --schema <claymate.json> [--mappings <mappings.json>] [--out <inspection.json>]
+  compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
   parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--id-column <col>]`);
   process.exit(command ? 1 : 0);
 }

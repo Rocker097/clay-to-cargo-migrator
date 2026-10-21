@@ -40,8 +40,11 @@ export function parseClaySchema(json: string): ClaySchema {
   if (!data || !Array.isArray(data.columns)) {
     throw new Error("Not a ClayMate schema: expected an object with a `columns` array.");
   }
-  for (const c of data.columns) {
-    if (typeof c.name !== "string" || typeof c.type !== "string") {
+  for (const [position, c] of data.columns.entries()) {
+    if (!c || typeof c !== "object") throw new Error(`Invalid column at position ${position}.`);
+    if (c.index === undefined) c.index = position;
+    if (!Number.isFinite(c.index)) throw new Error(`Invalid index at position ${position}.`);
+    if (typeof c.name !== "string" || !c.name.trim() || typeof c.type !== "string") {
       throw new Error(`Column at index ${c.index} is missing a name or type.`);
     }
   }
