@@ -50,3 +50,12 @@ test('CLI inspects before writing resources and requires explicit partial opt-in
  const blocked=run('compile','--schema',file,'--out',out);assert.equal(blocked.status,2);assert.equal(existsSync(out),false);
  const draft=run('compile','--schema',file,'--out',out,'--allow-partial');assert.equal(draft.status,0);assert.equal(existsSync(out),true);
 });
+
+
+test('Mixrank company url maps specifically to LinkedIn URL, never globally',()=>{
+ const columns=key=>schema([{name:'Domain',type:'text'},{name:'Enrich Company',type:'action',typeSettings:{actionKey:key,inputsBinding:[{name:'domain',formulaText:'{{@Domain}}'}]}},{name:'Url',type:'formula',typeSettings:{formulaText:'{{@Enrich Company}}.url'}}]);
+ const p=planMigration(columns('enrich-company-with-mixrank-v2'),'mixrank');
+ assert.equal(inspectPlan(p).blocked,0);
+ assert.equal(p.columns[2].bodyExpr,'rEnrichCompany.linkedin_url');
+ assert.equal(inspectPlan(planMigration(columns('other-company-enrich'),'other')).blocked,1);
+});

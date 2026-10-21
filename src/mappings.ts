@@ -193,7 +193,14 @@ export function normalizeBindingName(name: string): string {
 
 export function findMapping(actionKey: string): ActionMapping | undefined {
   const k = actionKey.toLowerCase();
-  return ACTION_MAPPINGS.find((m) => m.match(k));
+  const mapping = ACTION_MAPPINGS.find((m) => m.match(k));
+  // Mixrank company `url` is the LinkedIn company URL in the observed
+  // Clay starter export. Keep this alias scoped to that action: other
+  // providers may use url for the company website.
+  if (mapping?.id === "company-from-domain" && k === "enrich-company-with-mixrank-v2") {
+    return { ...mapping, fieldSynonyms: { ...mapping.fieldSynonyms, url: "linkedin_url" } };
+  }
+  return mapping;
 }
 
 /** The Cargo provider a Clay action key names, for reporting swaps. */
