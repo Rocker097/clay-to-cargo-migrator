@@ -78,7 +78,8 @@ if (command === "compile" || command === "inspect") {
 } else if (command === "parity") {
   const schemaPath = need("schema");
   const name = slugify(arg("name") ?? basename(schemaPath).replace(/\.(claymate\.)?json$/, ""), 24);
-  const plan = planMigration(parseClaySchema(readFileSync(schemaPath, "utf8")), name);
+  const mappingFile = arg("mappings");
+  const plan = planMigration(parseClaySchema(readFileSync(schemaPath, "utf8")), name, mappingFile ? parseOverrides(readFileSync(mappingFile, "utf8")) : {});
   const result = runParity(plan, readFileSync(need("clay"), "utf8"), readFileSync(need("cargo"), "utf8"), arg("id-column"));
   const outPath = arg("out");
   if (outPath) writeFileSync(outPath, result);
