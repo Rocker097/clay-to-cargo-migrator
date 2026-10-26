@@ -38,6 +38,8 @@ export interface ActionMapping {
   /** Clay output field name -> Cargo output field name. */
   fieldSynonyms: Record<string, string>;
   credits: number;
+  /** Advice from Cargo's clay-to-cargo recipe, added to the report. */
+  recipeNote?: string;
   /** Where the input signature was confirmed. */
   provenance: string;
 }
@@ -91,6 +93,8 @@ export const ACTION_MAPPINGS: ActionMapping[] = [
     knownOutputs: { profile_id: "string", job_title: "string", linkedin_url: "string" },
     fieldSynonyms: { title: "job_title", headline: "job_title", id: "profile_id" },
     credits: 0.25,
+    recipeNote:
+      "Cargo's clay-to-cargo recipe prefers `aiArk.enrichPerson` (0.1 credits, also returns a verified email, bills 0 on a miss) for rows that already carry a LinkedIn URL. Not generated here because its input signature is not confirmed in Cargo source; worth switching once verified, and running email finders only on the misses.",
     provenance: "gtm-skills: crm-enrichment/infra/tools/contact-linkedin-enrichment.ts",
   },
   {
@@ -159,7 +163,40 @@ export const isCrmWrite = (k: string) =>
  * tool has not confirmed in Cargo source. Reported with the suggestion,
  * never generated.
  */
-export const KNOWN_UNVERIFIED: { match: (k: string) => boolean; job: string; suggestion: string }[] = [
+export interface KnownJob {
+  /** Action key (lowercased) and normalized input binding names. */
+  match: (k: string, inputs: string[]) => boolean;
+  job: string;
+  suggestion: string;
+  /** Checked before the mapping table, because keywords alone misclassify it. */
+  first?: boolean;
+}
+
+const hasInput = (inputs: string[], ...names: string[]) => inputs.some((i) => names.includes(i));
+const LINKEDIN_INPUTS = ["linkedin_url", "linkedinurl", "linkedin", "profile_url", "linkedin_profile", "linkedin_profile_url"];
+const EMAIL_INPUTS = ["email", "work_email", "email_address", "personal_email"];
+const NAME_INPUTS = ["first_name", "firstname", "first", "full_name", "name", "last_name", "lastname", "last"];
+
+export const KNOWN_UNVERIFIED: KnownJob[] = [
+  {
+    // e.g. apollo-enrich-person with only an email: this is a lookup by
+    // email, not LinkedIn profile enrichment.
+    first: true,
+    match: (k, inputs) =>
+      any(k, "person", "people", "contact", "reverse") && any(k, "enrich", "lookup", "reverse", "find") &&
+      hasInput(inputs, ...EMAIL_INPUTS) && !hasInput(inputs, ...LINKEDIN_INPUTS) && !hasInput(inputs, ...NAME_INPUTS),
+    job: "Person lookup from email (Email -> LinkedIn reverse lookup)",
+    suggestion: "`FullEnrich.reverseEmailLookup` (1 credit, Cargo recipe)",
+  },
+  {
+    // e.g. find-linkedin-profile-url with name + company: finds the URL,
+    // it does not enrich a profile you already have.
+    first: true,
+    match: (k, inputs) =>
+      any(k, "linkedin") && any(k, "find", "search", "url") && !hasInput(inputs, ...LINKEDIN_INPUTS),
+    job: "Find a person's LinkedIn profile from name + company",
+    suggestion: "`waterfall.enrichContact` (2 credits, Cargo recipe: enrich person from name + company)",
+  },
   {
     match: (k) => any(k, "builtwith", "techstack", "tech-stack", "technolog"),
     job: "Tech stack / technographics",
@@ -187,13 +224,27 @@ export const KNOWN_UNVERIFIED: { match: (k: string) => boolean; job: string; sug
   },
 ];
 
+export function findKnownJob(actionKey: string, inputs: string[], first: boolean): KnownJob | undefined {
+  const k = actionKey.toLowerCase();
+  return KNOWN_UNVERIFIED.find((j) => Boolean(j.first) === first && j.match(k, inputs));
+}
+
 export function normalizeBindingName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
 
-export function findMapping(actionKey: string): ActionMapping | undefined {
+/**
+ * The Cargo action for a Clay action column. Matching is on the job the
+ * keywords describe AND on the inputs: a mapping only applies when every
+ * required Cargo field has a Clay input to fill it. Keywords alone mapped
+ * `apollo-enrich-person` (email in) to LinkedIn profile enrichment.
+ * When no inputs are known (inputs is undefined), keywords decide alone.
+ */
+export function findMapping(actionKey: string, inputs?: string[]): ActionMapping | undefined {
   const k = actionKey.toLowerCase();
-  const mapping = ACTION_MAPPINGS.find((m) => m.match(k));
+  const fits = (m: ActionMapping) =>
+    inputs === undefined || m.params.every((p) => !p.required || hasInput(inputs, ...p.clayAliases));
+  const mapping = ACTION_MAPPINGS.find((m) => m.match(k) && fits(m));
   // Mixrank company `url` is the LinkedIn company URL in the observed
   // Clay starter export. Keep this alias scoped to that action: other
   // providers may use url for the company website.

@@ -28,12 +28,18 @@ export function prepareRows(csv:string,inputs:InputSpec[],formulas:FormulaSpec[]
  if(!Number.isInteger(options.limit)||options.limit<1)throw new Error('limit must be a positive integer');
  const parsed=parseCsv(csv);for(const c of inputs)if(!parsed.headers.includes(c.clay))throw new Error(`Missing CSV input column ${c.clay}`);
  if(options.idColumn&&!parsed.headers.includes(options.idColumn))throw new Error(`Missing ID column ${options.idColumn}`);
- const seen=new Set<string>();
- return parsed.rows.slice(0,options.limit).map((source,n)=>{
+ const seen=new Map<string,number>();
+ // Check every row before failing, so one run lists every problem. The
+ // import still fails closed: if any row is bad, nothing is imported.
+ const problems:string[]=[];
+ const prepared=parsed.rows.slice(0,options.limit).map((source,n)=>{
+  const rowNo=n+1;
+  try{
   const key=options.idColumn?source[options.idColumn]:String(n+1);
-  if(!key?.trim())throw new Error(`Blank stable ID at row ${n+1}`);if(seen.has(key))throw new Error(`Duplicate source ID ${key}`);seen.add(key);
+  if(!key?.trim())throw new Error('blank stable ID');
+  if(seen.has(key))throw new Error(`duplicate source ID ${key} (first seen on row ${seen.get(key)})`);seen.set(key,rowNo);
   const row:Row={clay_row_id:`${options.source}:${key}`};
-  for(const c of inputs)row[c.slug]=convert(source[c.clay],c.type);
+  for(const c of inputs){try{row[c.slug]=convert(source[c.clay],c.type);}catch(e){throw new Error(`"${c.clay}": ${(e as Error).message}`);}}
   for(const f of formulas){const value=f.compute(row);if(value!==null&&value!==undefined&&!['string','number','boolean'].includes(typeof value))throw new Error(`Non-scalar formula output ${f.slug}`);if(typeof value==='number'&&!Number.isFinite(value))throw new Error(`Non-finite formula output ${f.slug}`);row[f.slug]=value===null?undefined:value as Row[string];}
   for(const cache of reuse){row[cache.flag]=false;
    if(options.reuseExisting&&cache.fields.length&&cache.fields.every(f=>source[f.csv]!==undefined&&source[f.csv]!=='')) {
@@ -42,7 +48,10 @@ export function prepareRows(csv:string,inputs:InputSpec[],formulas:FormulaSpec[]
    }
   }
   return {data:row};
+  }catch(e){problems.push(`row ${rowNo}: ${(e as Error).message}`);return undefined;}
  });
+ if(problems.length)throw new Error(`CSV has ${problems.length} problem(s); nothing was imported:\n${problems.map(p=>`  - ${p}`).join('\n')}`);
+ return prepared as {data:Row}[];
 }
 export type CargoCall=(args:string[])=>unknown;
 export const callCargo:CargoCall=args=>JSON.parse(execFileSync('npx',['--no-install','cargo-ai',...args],{encoding:'utf8',maxBuffer:20*1024*1024}));

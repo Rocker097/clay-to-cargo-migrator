@@ -150,3 +150,13 @@ Built by Afnan Saeed with AI assistance. Original prototype developed with Claud
 ## AI-assisted extension review
 
 Export unresolved columns for an assistant, validate its mapping proposals, then record explicit human approval before using the mappings. See [Extension review](docs/EXTENSION_REVIEW.md). No automatic AI calls or deployment.
+
+### Recipe-aligned fixes
+
+Grounded in Cargo's own [clay-to-cargo recipe](https://github.com/getcargohq/cargo-skills/blob/main/cargo-gtm/recipes/clay-to-cargo.md):
+
+- Action matching checks inputs, not just keywords. A mapping only applies when the column's inputs can fill every required Cargo field.
+- Two recipe jobs keywords used to misclassify: an enrich-person action with only an email is a reverse lookup (`FullEnrich.reverseEmailLookup`), and finding a LinkedIn URL from name + company is `waterfall.enrichContact`. Both are reported with the suggestion, not generated.
+- LinkedIn profile enrichment notes the recipe's preferred `aiArk.enrichPerson` (0.1 credits, returns a verified email).
+- Claygent and web-research prompts warn that the generated agent cannot browse, and point to Cargo's prompt library.
+- The generated loader typechecks inside a Cargo repo, and CSV problems are listed all at once with row numbers. Imports still fail closed.

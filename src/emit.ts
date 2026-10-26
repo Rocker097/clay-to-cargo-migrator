@@ -428,18 +428,24 @@ function emitLoader(plan: MigrationPlan, dir: string, stored: PlannedColumn[]): 
   return {path:`scripts/${dir}/load-rows.ts`,content:`// Dry run by default. Use a stable --id-column and --source for resumable imports.
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
-import {prepareRows, importPrepared, domainOf, type Row} from "./import-runtime.ts";
-const INPUTS=${JSON.stringify(inputs,null,2)};
-const REUSE=${JSON.stringify(reuse,null,2)};
-const FORMULAS=[
-${formulas.map(c=>`  {slug:${JSON.stringify(c.slug)},compute:(row:Row)=>${c.loaderExpr}},`).join("\n")}
+// @ts-ignore TS5097: Node runs this .ts import directly; Cargo repos do not enable allowImportingTsExtensions. Types still resolve.
+import {prepareRows, importPrepared, domainOf, type Row, type InputSpec, type FormulaSpec, type ReuseSpec} from "./import-runtime.ts";
+const INPUTS:InputSpec[]=${JSON.stringify(inputs,null,2)};
+const REUSE:ReuseSpec[]=${JSON.stringify(reuse,null,2)};
+// Formula inputs are typed loosely: column values are only known at runtime,
+// where import-runtime validates every input and formula output.
+type FormulaRow=Record<string,any>;
+const FORMULAS:FormulaSpec[]=[
+${formulas.map(c=>`  {slug:${JSON.stringify(c.slug)},compute:(row:FormulaRow)=>${c.loaderExpr}},`).join("\n")}
 ];
 function arg(name:string){const i=process.argv.indexOf("--"+name);return i<0?undefined:process.argv[i+1];}
 const csv=arg("csv");if(!csv)throw new Error("Provide --csv <path>");
 const execute=process.argv.includes("--execute"),idColumn=arg("id-column");
 if(execute&&!idColumn)throw new Error("Execution requires --id-column: row numbers are not stable IDs");
 const source=arg("source")??${JSON.stringify(plan.modelSlug)};
-const records=prepareRows(readFileSync(csv,"utf8"),INPUTS,FORMULAS,REUSE,{limit:Number(arg("limit")??20),source,idColumn,reuseExisting:process.argv.includes("--reuse-existing")});
+let records:ReturnType<typeof prepareRows>;
+try{records=prepareRows(readFileSync(csv,"utf8"),INPUTS,FORMULAS,REUSE,{limit:Number(arg("limit")??20),source,idColumn,reuseExisting:process.argv.includes("--reuse-existing")});}
+catch(error){console.error(error instanceof Error?error.message:String(error));process.exit(1);}
 console.log(JSON.stringify({rows:records.length,preview:records.slice(0,3)},null,2));
 if(!execute){console.log("Dry run. No Cargo calls made.");process.exit(0);}
 const model=arg("model-uuid");if(!model)throw new Error("Execution requires --model-uuid");

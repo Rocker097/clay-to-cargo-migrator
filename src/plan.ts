@@ -23,7 +23,7 @@ import {
   findMapping,
   isAiAction,
   isCrmWrite,
-  KNOWN_UNVERIFIED,
+  findKnownJob,
   normalizeBindingName,
   type ActionMapping,
 } from "./mappings.ts";
@@ -286,7 +286,11 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
   const ai = !overrides.actions?.[ts.actionKey ?? ""] && isAiAction(actionKey);
   const override = overrides.actions?.[ts.actionKey ?? ""];
   const adapterId = typeof override === "string" ? override : override?.adapter;
-  let mapping = adapterId ? ACTION_MAPPINGS.find(m => m.id === adapterId) : ai ? undefined : findMapping(actionKey);
+  const inputNames = (ts.inputsBinding ?? []).map((b) => normalizeBindingName(b.name));
+  // Recipe jobs that keywords misclassify are checked first, unless the
+  // user supplied an explicit mapping override.
+  const knownFirst = !adapterId && !ai ? findKnownJob(actionKey, inputNames, true) : undefined;
+  let mapping = adapterId ? ACTION_MAPPINGS.find(m => m.id === adapterId) : ai || knownFirst ? undefined : findMapping(actionKey, inputNames);
   if (override && !mapping) throw new Error(`Unknown mapping ID: ${adapterId}`);
   if (mapping && typeof override === "object") {
     mapping = { ...mapping,
@@ -297,7 +301,7 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
   }
 
   if (!ai && !mapping) {
-    const known = KNOWN_UNVERIFIED.find((k) => k.match(actionKey));
+    const known = knownFirst ?? findKnownJob(actionKey, inputNames, false);
     if (known) {
       col.kind = "known-unverified";
       col.notes.push(
@@ -328,6 +332,7 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
         `Provider swap: Clay used \`${ts.actionKey}\`; Cargo runs \`${mapping.connector.integration}.${mapping.action}\` for this job (${mapping.job}).`,
       );
     }
+    if (mapping.recipeNote) col.notes.push(mapping.recipeNote);
     for (const p of mapping.params) {
       const b = bindings.find((x) => !used.has(x.name) && p.clayAliases.includes(normalizeBindingName(x.name)));
       if (!b) {
@@ -375,6 +380,15 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
     );
     col.verify.push("AI provider/model and output field shape are adapted, not preserved: configure them before asserting parity. Clay formatting support is limited to primitive values.");
     col.notes.push("Clay AI column becomes a Cargo agent with a JSON answer, wrapped in a tool. Prompt carried over with column references wired in.");
+    // Claygent browses the web; the generated agent only sees the values the
+    // play passes in. Cargo's recipe: check its prompt library first, whose
+    // research prompts run on scraped website text.
+    const browses = actionKey.includes("claygent") || /\b(browse|visit|search the web|go to|look up|website|web page|pricing page|find .* on)\b/i.test(promptText);
+    if (browses) {
+      col.verify.push(
+        `"${col.clay.name}" looks like web research (Claygent-style). The generated agent cannot browse: it only sees the values passed in, so its answers will not match Clay's. Per Cargo's clay-to-cargo recipe, check cargo-gtm/references/prompt-library first (e.g. company-research prompts run on scraped \`website_text\`) and add a scraping step that feeds this agent.`,
+      );
+    }
   }
 
   // The run condition becomes a guard inside the tool. Every value it reads
