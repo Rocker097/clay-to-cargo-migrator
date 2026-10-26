@@ -16,6 +16,9 @@
 export class FormulaError extends Error {}
 
 export type Node =
+  | { k: "array"; items: Node[] }
+  | { k: "index"; receiver: Node; index: number; optional: boolean }
+  | { k: "regex"; pattern: string; flags: string }
   | { k: "ref"; name: string; path: string[]; optionalPath?: boolean[] }
   | { k: "method"; receiver: Node; method: string; optional: boolean; args: Node[] }
   | { k: "nullish"; v: "null" | "undefined" }
@@ -28,13 +31,14 @@ export type Node =
   | { k: "cond"; test: Node; a: Node; b: Node };
 
 type Tok =
+  | { t: "regex"; v: string; flags: string }
   | { t: "ref"; v: string }
   | { t: "str"; v: string }
   | { t: "num"; v: number }
   | { t: "id"; v: string }
   | { t: "op"; v: string };
 
-const OPS = ["===", "!==", "?.", "??", "&&", "||", "==", "!=", ">=", "<=", ">", "<", "!", "+", "-", "*", "/", "(", ")", ",", ".", "?", ":"];
+const OPS = ["===", "!==", "?.", "??", "&&", "||", "==", "!=", ">=", "<=", ">", "<", "!", "+", "-", "*", "/", "(", ")", "[", "]", ",", ".", "?", ":"];
 
 function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
@@ -55,6 +59,13 @@ function tokenize(src: string): Tok[] {
       out.push({ t: "ref", v: name });
       i = end + 2;
       continue;
+    }
+    if (ch === "/" && (!out.length || (out.at(-1)!.t === "op" && ["(",",","["].includes(String(out.at(-1)!.v))))) {
+      const match = /^\/((?:\\.|[^/\n])+)\/([a-z]*)/.exec(src.slice(i));
+      if (!match) throw new FormulaError("Invalid regex literal");
+      // Deliberately bounded cleanup patterns: no arbitrary regex/backtracking.
+      if (!["[^0-9]", "[^a-zA-Z0-9]", "\\s+"].includes(match[1]) || !["", "g"].includes(match[2])) throw new FormulaError("Regex pattern/flags need explicit support");
+      out.push({t:"regex",v:match[1],flags:match[2]});i+=match[0].length;continue;
     }
     if (ch === '"' || ch === "'") {
       let j = i + 1;
@@ -109,11 +120,19 @@ export function parseFormula(src: string): Node {
     const tok = toks[p++];
     if (!tok) throw new FormulaError("Unexpected end of formula");
     let node: Node;
-    if (tok.t === "ref") node = { k: "ref", name: tok.v, path: [] };
+    if (tok.t === "regex") node = {k:"regex",pattern:tok.v,flags:tok.flags};
+    else if (tok.t === "ref") node = { k: "ref", name: tok.v, path: [] };
     else if (tok.t === "str") node = { k: "str", v: tok.v };
     else if (tok.t === "num") node = { k: "num", v: tok.v };
     else if (tok.t === "id") {
-      if (tok.v === "null" || tok.v === "undefined") node = { k: "nullish", v: tok.v };
+      if (tok.v === "new" || tok.v === "Math" || tok.v === "Date") {
+        let fn: string;
+        if(tok.v === "new") {if(toks[p++]?.v !== "Date") throw new FormulaError("Only new Date(value) is supported");fn="DATE_VALUE";}
+        else {expectOp("."); const member=toks[p++]?.v;fn=tok.v+"_"+member;if(!["Math_floor","Math_ceil","Math_round","Date_now"].includes(fn))throw new FormulaError("Unsupported standard function");}
+        expectOp("(");const args:Node[]=[];if(!isOp(")")){args.push(expr(0));while(isOp(",")){p++;args.push(expr(0));}}expectOp(")");
+        node={k:"call",fn,args};
+      }
+      else if (tok.v === "null" || tok.v === "undefined") node = { k: "nullish", v: tok.v };
       else if (tok.v === "true" || tok.v === "false") node = { k: "bool", v: tok.v === "true" };
       else if (isOp("(")) {
         p++;
@@ -128,6 +147,8 @@ export function parseFormula(src: string): Node {
         expectOp(")");
         node = { k: "call", fn: tok.v.toUpperCase(), args };
       } else throw new FormulaError(`Unknown identifier "${tok.v}"`);
+    } else if (tok.v === "[") {
+      const items:Node[]=[];if(!isOp("]")){items.push(expr(0));while(isOp(",")){p++;items.push(expr(0));}}expectOp("]");node={k:"array",items};
     } else if (tok.v === "(") {
       node = expr(0);
       expectOp(")");
@@ -136,7 +157,12 @@ export function parseFormula(src: string): Node {
     } else throw new FormulaError(`Unexpected "${tok.v}"`);
 
     // Keep optional access in the AST; dropping it changes missing-value behavior.
-    while (isOp(".") || isOp("?.")) {
+    while (isOp(".") || isOp("?.") || isOp("[")) {
+      if(isOp("[") || (isOp("?.") && toks[p+1]?.v === "[")) {
+        const optional=isOp("?.");if(optional)p++;p++;
+        const index=toks[p++];if(index?.t!=="num"||!Number.isSafeInteger(index.v)||index.v<0)throw new FormulaError("Index must be a nonnegative integer literal");
+        expectOp("]");node={k:"index",receiver:node,index:index.v,optional};continue;
+      }
       const optional = isOp("?.");
       p++;
       const prop = toks[p++];
@@ -149,10 +175,10 @@ export function parseFormula(src: string): Node {
           while (isOp(",")) { p++; args.push(expr(0)); }
         }
         expectOp(")");
-        if (!["toUpperCase", "toLowerCase", "trim", "includes", "startsWith", "endsWith", "replace", "replaceAll", "slice", "substring"].includes(prop.v)) {
+        if (!["toUpperCase", "toLowerCase", "trim", "includes", "startsWith", "endsWith", "replace", "replaceAll", "slice", "substring", "split", "join"].includes(prop.v)) {
           throw new FormulaError(`Method ${prop.v}() is not supported`);
         }
-        const counts: Record<string, number[]> = {toUpperCase:[0],toLowerCase:[0],trim:[0],includes:[1],startsWith:[1],endsWith:[1],replace:[2],replaceAll:[2],slice:[1,2],substring:[1,2]};
+        const counts: Record<string, number[]> = {toUpperCase:[0],toLowerCase:[0],trim:[0],includes:[1],startsWith:[1],endsWith:[1],replace:[2],replaceAll:[2],slice:[1,2],substring:[1,2],split:[1],join:[0,1]};
         if (!counts[prop.v].includes(args.length)) throw new FormulaError(`${prop.v}() expects ${counts[prop.v].join(" or ")} arguments`);
         node = { k: "method", receiver: node, method: prop.v, optional, args };
         continue;
@@ -191,6 +217,8 @@ export function parseFormula(src: string): Node {
 /** Every column reference in a formula, with the property path read off it. */
 export function refsOf(node: Node): { name: string; path: string[] }[] {
   switch (node.k) {
+    case "array": return node.items.flatMap(refsOf);
+    case "index": return refsOf(node.receiver);
     case "ref":
       return [{ name: node.name, path: node.path }];
     case "method":
@@ -214,6 +242,8 @@ export type RefResolver = (name: string, path: string[]) => string;
 export function emitBody(node: Node, resolve: RefResolver): string {
   const e = (n: Node): string => emitBody(n, resolve);
   switch (node.k) {
+    case "array": case "index": case "regex":
+      throw new FormulaError("Array/index/regex syntax is supported only in input/loader formulas");
     case "method":
       throw new FormulaError(`${node.method}() method syntax is supported only in input/loader formulas; Cargo workflow translation needs separate verification`);
     case "ref":
@@ -241,6 +271,8 @@ export function emitBody(node: Node, resolve: RefResolver): string {
     case "call": {
       const a = node.args.map(e);
       switch (node.fn) {
+        case "DATE_VALUE": case "Date_now": case "Math_floor": case "Math_ceil": case "Math_round":
+          throw new FormulaError("Date/Math operations are supported only in input/loader formulas");
         case "CLAY_FORMAT":
           if (a.length !== 1) throw new FormulaError("Clay.formatForAIPrompt needs one argument");
           return `(${a[0]} == null ? "" : ${a[0]})`;
@@ -274,6 +306,9 @@ export function emitBody(node: Node, resolve: RefResolver): string {
 export function emitLoader(node: Node, resolve: RefResolver): string {
   const e = (n: Node): string => emitLoader(n, resolve);
   switch (node.k) {
+    case "array": return `[${node.items.map(e).join(", ")}]`;
+    case "regex": return `/${node.pattern}/${node.flags}`;
+    case "index": return `${node.receiver.k === "method" || node.receiver.k === "index" || node.receiver.k === "ref" ? e(node.receiver) : "("+e(node.receiver)+")"}${node.optional?"?.":""}[${node.index}]`;
     case "ref":
       return node.path.reduce((value, property, index) =>
         `${value}${node.optionalPath?.[index] ? "?." : ""}[${JSON.stringify(property)}]`,
@@ -281,7 +316,7 @@ export function emitLoader(node: Node, resolve: RefResolver): string {
     case "method":
       // Do not parenthesize a method chain: (x?.trim()).toUpperCase()
       // would lose JavaScript's optional-chain short-circuit behavior.
-      return `${node.receiver.k === "ref" || node.receiver.k === "method" ? e(node.receiver) : "(" + e(node.receiver) + ")"}${node.optional ? "?." : "."}${node.method}(${node.args.map(e).join(", ")})`;
+      return `${node.receiver.k === "ref" || node.receiver.k === "method" || node.receiver.k === "index" ? e(node.receiver) : "(" + e(node.receiver) + ")"}${node.optional ? "?." : "."}${node.method}(${node.args.map(e).join(", ")})`;
     case "nullish":
       return node.v;
     case "str":
@@ -300,6 +335,9 @@ export function emitLoader(node: Node, resolve: RefResolver): string {
     case "call": {
       const a = node.args.map(e);
       switch (node.fn) {
+        case "DATE_VALUE": return `new Date(${a[0]})`;
+        case "Date_now": return "Date.now()";
+        case "Math_floor": case "Math_ceil": case "Math_round": return `Math.${node.fn.slice(5)}(${a[0]})`;
         case "DOMAIN":
           return `domainOf(${a[0]})`;
         case "COALESCE":

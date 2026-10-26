@@ -186,8 +186,8 @@ function lookup(byName: Map<string, PlannedColumn>, name: string, forCol: Planne
 /** Resolve a Clay field read off an action column to the Cargo field name. */
 function outputField(dep: PlannedColumn, path: string[], from: PlannedColumn): string {
   if (path.length === 0) return dep.mapping?.primaryField ?? (dep.kind === "ai" ? "answer" : "raw");
-  if (path.length > 1) throw new Blocked(`Reads nested field "${path.join(".")}" from "${dep.clay.name}"; only one level is supported.`);
-  const clayField = path[0];
+  const clayField = path.join(".");
+  if (path.length > 1 && !Object.hasOwn(dep.mapping?.fieldSynonyms ?? {}, clayField)) throw new Blocked(`Nested output "${clayField}" needs an explicit verified adapter mapping.`);
   if (dep.kind === "ai") {
     if (clayField !== "answer") throw new Blocked(`AI output field "${clayField}" is not supported; only answer is available.`);
     return "answer";
@@ -263,6 +263,7 @@ function planFormula(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
     }
     return dep.cargoType;
   });
+  if (inferred === "array" || inferred === "regex") throw new Blocked("Array/regex results must be converted to a scalar before storage");
   if (inferred === "null" || inferred === "undefined") throw new Blocked("Formula has no concrete result type");
   if (inferred !== col.cargoType) col.notes.push(`Corrected exported type ${col.cargoType} to inferred ${inferred}.`);
   col.cargoType = inferred;

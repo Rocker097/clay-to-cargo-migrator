@@ -5,7 +5,7 @@
 //   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
 //   parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--name <table>] [--id-column <col>]
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import { parseClaySchema } from "./claymate.ts";
@@ -16,6 +16,7 @@ import { runParity } from "./parity.ts";
 import { planMigration } from "./plan.ts";
 import { evaluateCases } from "./evaluate.ts";
 import { inspectPlan, parseOverrides } from "./inspect.ts";
+import { extensionPacket, validateProposal } from "./extensions.ts";
 import { buildReport } from "./report.ts";
 
 function arg(name: string): string | undefined {
@@ -34,7 +35,20 @@ function need(name: string): string {
 
 const command = process.argv[2];
 
-if (command === "compile" || command === "inspect") {
+if(command === "propose") {
+ const packet=extensionPacket(readFileSync(need("schema"),"utf8"));const out=need("out");mkdirSync(dirname(out),{recursive:true});writeFileSync(out,JSON.stringify(packet,null,2)+"\n");console.log(`Review packet saved to ${out}. No AI request sent and no mappings installed.`);
+} else if(command === "review-extension") {
+ const proposal=JSON.parse(readFileSync(need("proposal"),"utf8"));const fixtures=JSON.parse(readFileSync(need("fixtures"),"utf8"));
+ const checked=validateProposal(readFileSync(need("schema"),"utf8"),proposal,fixtures);
+ if(!process.argv.includes("--approve")){console.log(JSON.stringify(checked,null,2));console.log("Validation only. A reviewer must inspect evidence, then use --approve --reviewer NAME --out FILE.");}
+ else {
+  const reviewer=need("reviewer").trim();if(!reviewer)throw new Error("Reviewer must be named");const out=need("out");
+  if(existsSync(out)||existsSync(out+".review.json"))throw new Error("Refusing to overwrite approved artifacts; use a new versioned path");
+  mkdirSync(dirname(out),{recursive:true});writeFileSync(out,JSON.stringify(checked.mappings,null,2)+"\n",{flag:"wx"});
+  writeFileSync(out+".review.json",JSON.stringify({reviewer,approvedAt:new Date().toISOString(),schemaHash:proposal.schemaHash,...checked},null,2)+"\n",{flag:"wx"});
+  console.log(`Approved mappings saved to ${out}. Compile explicitly with --mappings ${out}. No deployment performed.`);
+ }
+} else if (command === "compile" || command === "inspect") {
   const schemaPath = need("schema");
   const out = command === "compile" ? need("out") : arg("out");
   const name = slugify(arg("name") ?? basename(schemaPath).replace(/\.(claymate\.)?json$/, ""), 24);
@@ -94,6 +108,8 @@ if (command === "compile" || command === "inspect") {
 } else {
   console.log(`clay-to-cargo
 
+  propose --schema <schema.json> --out <review-packet.json>
+  review-extension --schema <schema.json> --proposal <proposal.json> --fixtures <cases.json> [--approve --reviewer NAME --out <mappings.json>]
   inspect --schema <claymate.json> [--mappings <mappings.json>] [--out <inspection.json>]
   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
   evaluate --cases <cases.json> [--out <results.json>]

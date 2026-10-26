@@ -146,3 +146,7 @@ Cargo's skill already explains how an agent can migrate a table. This experiment
 - `docs/`: comparison, live testing and walkthrough.
 
 Built by Afnan Saeed with AI assistance. Original prototype developed with Claude; deployment fixes, real-export validation and packaging developed with Codex. See [attributions](docs/ATTRIBUTION.md).
+
+## AI-assisted extension review
+
+Export unresolved columns for an assistant, validate its mapping proposals, then record explicit human approval before using the mappings. See [Extension review](docs/EXTENSION_REVIEW.md). No automatic AI calls or deployment.
