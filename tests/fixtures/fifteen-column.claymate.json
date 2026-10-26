@@ -1,0 +1,189 @@
+{
+  "version": "1.0",
+  "columnCount": 15,
+  "columns": [
+    {
+      "index": 0,
+      "name": "Url",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "url"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Enrich Company}}.url"
+      }
+    },
+    {
+      "index": 1,
+      "name": "Domain",
+      "type": "text",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        }
+      }
+    },
+    {
+      "index": 2,
+      "name": "Enrich Company",
+      "type": "action",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "json"
+        },
+        "actionKey": "enrich-company-with-mixrank-v2",
+        "inputsBinding": [
+          {
+            "name": "company_identifier",
+            "formulaText": "{{@Domain}}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "name": "Domain Status",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Domain}} ? \"Ready\" : \"Missing domain\""
+      }
+    },
+    {
+      "index": 4,
+      "name": "Readiness Score",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Domain Status}} === \"Ready\" ? 10 : 0"
+      }
+    },
+    {
+      "index": 5,
+      "name": "Priority",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Readiness Score}} >= 10 ? \"High\" : \"Review\""
+      }
+    },
+    {
+      "index": 6,
+      "name": "Adjusted Score",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Readiness Score}} * 2 + 5"
+      }
+    },
+    {
+      "index": 7,
+      "name": "Routing Team",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Priority}} === \"High\" && {{@Adjusted Score}} >= 25 ? \"Sales\" : \"Research\""
+      }
+    },
+    {
+      "index": 8,
+      "name": "Account Summary",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Domain}} + \" | \" + {{@Priority}} + \" | \" + {{@Routing Team}}"
+      }
+    },
+    {
+      "index": 9,
+      "name": "Score Band",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Adjusted Score}} >= 25 ? \"A\" : \"B\""
+      }
+    },
+    {
+      "index": 10,
+      "name": "Routing Label",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Routing Team}} + \" / \" + {{@Score Band}}"
+      }
+    },
+    {
+      "index": 11,
+      "name": "Ready Flag",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Domain Status}} === \"Ready\" && {{@Score Band}} === \"A\""
+      }
+    },
+    {
+      "index": 12,
+      "name": "Followup Days",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Ready Flag}} ? 1 : 7"
+      }
+    },
+    {
+      "index": 13,
+      "name": "Uppercase Domain",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Domain}}?.toUpperCase()"
+      }
+    },
+    {
+      "index": 14,
+      "name": "Domain Length",
+      "type": "formula",
+      "typeSettings": {
+        "dataTypeSettings": {
+          "type": "text"
+        },
+        "formulaType": "text",
+        "formulaText": "{{@Domain}}?.length"
+      }
+    }
+  ]
+}

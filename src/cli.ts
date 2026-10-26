@@ -14,6 +14,7 @@ import { emitProject } from "./emit.ts";
 import { slugify } from "./naming.ts";
 import { runParity } from "./parity.ts";
 import { planMigration } from "./plan.ts";
+import { evaluateCases } from "./evaluate.ts";
 import { inspectPlan, parseOverrides } from "./inspect.ts";
 import { buildReport } from "./report.ts";
 
@@ -75,6 +76,12 @@ if (command === "compile" || command === "inspect") {
   console.log(`\n  + migrated   ~ left out on purpose   ! needs manual review`);
   console.log(`\nWrote ${files.length} files to ${out}`);
   console.log(`Report: ${join(out!, files[files.length - 1].path)}`);
+} else if (command === "evaluate") {
+  const cases=JSON.parse(readFileSync(need("cases"),"utf8"));
+  if(!Array.isArray(cases))throw new Error("Evaluation input must be an array of cases");
+  const result=evaluateCases(cases);const json=JSON.stringify(result,null,2)+"\n";
+  const out=arg("out");if(out){mkdirSync(dirname(out),{recursive:true});writeFileSync(out,json);}
+  console.log(json);process.exit(result.passed?0:1);
 } else if (command === "parity") {
   const schemaPath = need("schema");
   const name = slugify(arg("name") ?? basename(schemaPath).replace(/\.(claymate\.)?json$/, ""), 24);
@@ -89,6 +96,7 @@ if (command === "compile" || command === "inspect") {
 
   inspect --schema <claymate.json> [--mappings <mappings.json>] [--out <inspection.json>]
   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
+  evaluate --cases <cases.json> [--out <results.json>]
   parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--id-column <col>]`);
   process.exit(command ? 1 : 0);
 }

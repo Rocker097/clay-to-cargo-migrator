@@ -17,6 +17,10 @@ export const clayDemoCompanies = defineModel("clay_demo_companies", {
     columns: [
       { slug: "clay_row_id", type: "string" },
       { slug: "company_website", type: "string" }, // Clay: "Company Website"
+      { slug: "reuse_enrich_company", type: "boolean" }, // Clay: "Migration cache: reuse_enrich_company"
+      { slug: "saved_enrich_company_raw", type: "string" }, // Clay: "Migration cache: saved_enrich_company_raw"
+      { slug: "saved_enrich_company_company_name", type: "string" }, // Clay: "Migration cache: saved_enrich_company_company_name"
+      { slug: "saved_enrich_company_employee_count", type: "number" }, // Clay: "Migration cache: saved_enrich_company_employee_count"
     ],
   },
   additionalColumns: [

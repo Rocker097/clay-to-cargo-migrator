@@ -1,3 +1,5 @@
+> **v0.3 import update:** generated loaders now require a stable `--id-column` for live execution. Read [the current import and reuse guide](ADAPTABILITY.md) before using older examples below. No atomic cross-machine upsert or automatic overwrite is claimed.
+
 # Live test in your own Cargo workspace
 
 Local commands in the README need no account. The steps below create resources, write rows and consume credits when a play runs. Start with one company-only row and leave automatic execution disabled.

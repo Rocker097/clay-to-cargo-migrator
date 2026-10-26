@@ -20,6 +20,10 @@ const migrateRow = defineWorkflow(
       id: z.string(),
       clay_row_id: z.string().optional(),
       company_website: z.string().optional(),
+      reuse_enrich_company: z.boolean().optional(),
+      saved_enrich_company_raw: z.string().optional(),
+      saved_enrich_company_company_name: z.string().optional(),
+      saved_enrich_company_employee_count: z.number().optional(),
     }),
     output: z.object({ status: z.literal("migrated") }),
     uses: { enrichCompany, employeeFitStatus },
@@ -29,11 +33,16 @@ const migrateRow = defineWorkflow(
     // #3 "Enrich company"
     const rEnrichCompany = uses.enrichCompany({
       domain: input.company_website,
+      migrationReuse: input.reuse_enrich_company,
+      savedRaw: input.saved_enrich_company_raw,
+      saved_company_name: input.saved_enrich_company_company_name,
+      saved_employee_count: input.saved_enrich_company_employee_count,
     });
 
     // #5 "Employee Fit Status"
     const rEmployeeFitStatus = uses.employeeFitStatus({
       ctxEmployeeCount: rEnrichCompany.employee_count,
+
     });
 
     // One write per row, results and stamp together, so a row is never

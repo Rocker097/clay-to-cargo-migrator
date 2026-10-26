@@ -1,0 +1,833 @@
+{
+  "formatVersion": 1,
+  "name": "fifteen_column_test",
+  "columnCount": 15,
+  "supported": 14,
+  "review": 1,
+  "blocked": 0,
+  "readyToGenerate": true,
+  "columns": [
+    {
+      "name": "Domain",
+      "sourceType": "text",
+      "cargoColumn": "domain",
+      "executionOrder": 1,
+      "dependencies": [],
+      "status": "supported",
+      "kind": "input",
+      "outputType": "string",
+      "typeSource": "export",
+      "notes": [],
+      "verification": []
+    },
+    {
+      "name": "Enrich Company",
+      "sourceType": "action",
+      "cargoColumn": "enrich_company",
+      "executionOrder": 2,
+      "dependencies": [
+        "Domain"
+      ],
+      "status": "review",
+      "kind": "action",
+      "outputType": "string",
+      "typeSource": "adapter",
+      "adapter": "company-from-domain",
+      "targetAction": "linkedin.enrichCompanyFromDomain",
+      "notes": [
+        "Provider swap: Clay used `enrich-company-with-mixrank-v2`; Cargo runs `linkedin.enrichCompanyFromDomain` for this job (Enrich company from domain)."
+      ],
+      "verification": []
+    },
+    {
+      "name": "Url",
+      "sourceType": "formula",
+      "cargoColumn": "url",
+      "executionOrder": 3,
+      "dependencies": [
+        "Enrich Company"
+      ],
+      "status": "supported",
+      "kind": "body-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
+      "formula": "{{@Enrich Company}}.url",
+      "notes": [
+        "Computed in the play after the columns it reads: `{{@Enrich Company}}.url`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Domain Status",
+      "sourceType": "formula",
+      "cargoColumn": "domain_status",
+      "executionOrder": 4,
+      "dependencies": [
+        "Domain"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
+      "formula": "{{@Domain}} ? \"Ready\" : \"Missing domain\"",
+      "notes": [
+        "Computed by the loader at load time: `{{@Domain}} ? \"Ready\" : \"Missing domain\"`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Readiness Score",
+      "sourceType": "formula",
+      "cargoColumn": "readiness_score",
+      "executionOrder": 5,
+      "dependencies": [
+        "Domain Status"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "number",
+      "typeSource": "inferred",
+      "formula": "{{@Domain Status}} === \"Ready\" ? 10 : 0",
+      "notes": [
+        "Computed by the loader at load time: `{{@Domain Status}} === \"Ready\" ? 10 : 0`",
+        "Corrected exported type string to inferred number."
+      ],
+      "verification": []
+    },
+    {
+      "name": "Priority",
+      "sourceType": "formula",
+      "cargoColumn": "priority",
+      "executionOrder": 6,
+      "dependencies": [
+        "Readiness Score"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
+      "formula": "{{@Readiness Score}} >= 10 ? \"High\" : \"Review\"",
+      "notes": [
+        "Computed by the loader at load time: `{{@Readiness Score}} >= 10 ? \"High\" : \"Review\"`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Adjusted Score",
+      "sourceType": "formula",
+      "cargoColumn": "adjusted_score",
+      "executionOrder": 7,
+      "dependencies": [
+        "Readiness Score"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "number",
+      "typeSource": "inferred",
+      "formula": "{{@Readiness Score}} * 2 + 5",
+      "notes": [
+        "Computed by the loader at load time: `{{@Readiness Score}} * 2 + 5`",
+        "Corrected exported type string to inferred number."
+      ],
+      "verification": []
+    },
+    {
+      "name": "Routing Team",
+      "sourceType": "formula",
+      "cargoColumn": "routing_team",
+      "executionOrder": 8,
+      "dependencies": [
+        "Priority",
+        "Adjusted Score"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
+      "formula": "{{@Priority}} === \"High\" && {{@Adjusted Score}} >= 25 ? \"Sales\" : \"Research\"",
+      "notes": [
+        "Computed by the loader at load time: `{{@Priority}} === \"High\" && {{@Adjusted Score}} >= 25 ? \"Sales\" : \"Research\"`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Account Summary",
+      "sourceType": "formula",
+      "cargoColumn": "account_summary",
+      "executionOrder": 9,
+      "dependencies": [
+        "Domain",
+        "Priority",
+        "Routing Team"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
+      "formula": "{{@Domain}} + \" | \" + {{@Priority}} + \" | \" + {{@Routing Team}}",
+      "notes": [
+        "Computed by the loader at load time: `{{@Domain}} + \" | \" + {{@Priority}} + \" | \" + {{@Routing Team}}`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Score Band",
+      "sourceType": "formula",
+      "cargoColumn": "score_band",
+      "executionOrder": 10,
+      "dependencies": [
+        "Adjusted Score"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
+      "formula": "{{@Adjusted Score}} >= 25 ? \"A\" : \"B\"",
+      "notes": [
+        "Computed by the loader at load time: `{{@Adjusted Score}} >= 25 ? \"A\" : \"B\"`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Routing Label",
+      "sourceType": "formula",
+      "cargoColumn": "routing_label",
+      "executionOrder": 11,
+      "dependencies": [
+        "Routing Team",
+        "Score Band"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
+      "formula": "{{@Routing Team}} + \" / \" + {{@Score Band}}",
+      "notes": [
+        "Computed by the loader at load time: `{{@Routing Team}} + \" / \" + {{@Score Band}}`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Ready Flag",
+      "sourceType": "formula",
+      "cargoColumn": "ready_flag",
+      "executionOrder": 12,
+      "dependencies": [
+        "Domain Status",
+        "Score Band"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "boolean",
+      "typeSource": "inferred",
+      "formula": "{{@Domain Status}} === \"Ready\" && {{@Score Band}} === \"A\"",
+      "notes": [
+        "Computed by the loader at load time: `{{@Domain Status}} === \"Ready\" && {{@Score Band}} === \"A\"`",
+        "Corrected exported type string to inferred boolean."
+      ],
+      "verification": []
+    },
+    {
+      "name": "Followup Days",
+      "sourceType": "formula",
+      "cargoColumn": "followup_days",
+      "executionOrder": 13,
+      "dependencies": [
+        "Ready Flag"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "number",
+      "typeSource": "inferred",
+      "formula": "{{@Ready Flag}} ? 1 : 7",
+      "notes": [
+        "Computed by the loader at load time: `{{@Ready Flag}} ? 1 : 7`",
+        "Corrected exported type string to inferred number."
+      ],
+      "verification": []
+    },
+    {
+      "name": "Uppercase Domain",
+      "sourceType": "formula",
+      "cargoColumn": "uppercase_domain",
+      "executionOrder": 14,
+      "dependencies": [
+        "Domain"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
+      "formula": "{{@Domain}}?.toUpperCase()",
+      "notes": [
+        "Computed by the loader at load time: `{{@Domain}}?.toUpperCase()`"
+      ],
+      "verification": []
+    },
+    {
+      "name": "Domain Length",
+      "sourceType": "formula",
+      "cargoColumn": "domain_length",
+      "executionOrder": 15,
+      "dependencies": [
+        "Domain"
+      ],
+      "status": "supported",
+      "kind": "loader-formula",
+      "outputType": "number",
+      "typeSource": "inferred",
+      "formula": "{{@Domain}}?.length",
+      "notes": [
+        "Computed by the loader at load time: `{{@Domain}}?.length`",
+        "Corrected exported type string to inferred number."
+      ],
+      "verification": []
+    }
+  ],
+  "workflow": {
+    "version": 1,
+    "name": "fifteen_column_test",
+    "nodes": [
+      {
+        "id": "domain",
+        "sourceName": "Domain",
+        "operation": "input",
+        "outputType": "string",
+        "typeSource": "export",
+        "dependencies": [],
+        "execution": "import",
+        "missingValues": "Adapter-defined; review provider contract",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "enrich_company",
+        "sourceName": "Enrich Company",
+        "operation": "action",
+        "outputType": "string",
+        "typeSource": "adapter",
+        "dependencies": [
+          "Domain"
+        ],
+        "execution": "cargo",
+        "missingValues": "Adapter-defined; review provider contract",
+        "adapter": "company-from-domain",
+        "existingValueReuse": {
+          "flag": "reuse_enrich_company",
+          "raw": "saved_enrich_company_raw",
+          "sourceColumn": "Enrich Company",
+          "fields": [
+            {
+              "field": "linkedin_url",
+              "type": "string",
+              "csv": "Url",
+              "slug": "saved_enrich_company_linkedin_url"
+            }
+          ]
+        },
+        "adaptation": {
+          "from": "enrich",
+          "to": "linkedin.enrichCompanyFromDomain"
+        },
+        "generated": true
+      },
+      {
+        "id": "url",
+        "sourceName": "Url",
+        "operation": "body-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Enrich Company"
+        ],
+        "expression": {
+          "k": "ref",
+          "name": "Enrich Company",
+          "path": [
+            "url"
+          ],
+          "optionalPath": [
+            false
+          ]
+        },
+        "execution": "cargo",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "domain_status",
+        "sourceName": "Domain Status",
+        "operation": "loader-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Domain"
+        ],
+        "expression": {
+          "k": "cond",
+          "test": {
+            "k": "ref",
+            "name": "Domain",
+            "path": []
+          },
+          "a": {
+            "k": "str",
+            "v": "Ready"
+          },
+          "b": {
+            "k": "str",
+            "v": "Missing domain"
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "readiness_score",
+        "sourceName": "Readiness Score",
+        "operation": "loader-formula",
+        "outputType": "number",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Domain Status"
+        ],
+        "expression": {
+          "k": "cond",
+          "test": {
+            "k": "bin",
+            "op": "===",
+            "l": {
+              "k": "ref",
+              "name": "Domain Status",
+              "path": []
+            },
+            "r": {
+              "k": "str",
+              "v": "Ready"
+            }
+          },
+          "a": {
+            "k": "num",
+            "v": 10
+          },
+          "b": {
+            "k": "num",
+            "v": 0
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "priority",
+        "sourceName": "Priority",
+        "operation": "loader-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Readiness Score"
+        ],
+        "expression": {
+          "k": "cond",
+          "test": {
+            "k": "bin",
+            "op": ">=",
+            "l": {
+              "k": "ref",
+              "name": "Readiness Score",
+              "path": []
+            },
+            "r": {
+              "k": "num",
+              "v": 10
+            }
+          },
+          "a": {
+            "k": "str",
+            "v": "High"
+          },
+          "b": {
+            "k": "str",
+            "v": "Review"
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "adjusted_score",
+        "sourceName": "Adjusted Score",
+        "operation": "loader-formula",
+        "outputType": "number",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Readiness Score"
+        ],
+        "expression": {
+          "k": "bin",
+          "op": "+",
+          "l": {
+            "k": "bin",
+            "op": "*",
+            "l": {
+              "k": "ref",
+              "name": "Readiness Score",
+              "path": []
+            },
+            "r": {
+              "k": "num",
+              "v": 2
+            }
+          },
+          "r": {
+            "k": "num",
+            "v": 5
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "routing_team",
+        "sourceName": "Routing Team",
+        "operation": "loader-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Priority",
+          "Adjusted Score"
+        ],
+        "expression": {
+          "k": "cond",
+          "test": {
+            "k": "bin",
+            "op": "&&",
+            "l": {
+              "k": "bin",
+              "op": "===",
+              "l": {
+                "k": "ref",
+                "name": "Priority",
+                "path": []
+              },
+              "r": {
+                "k": "str",
+                "v": "High"
+              }
+            },
+            "r": {
+              "k": "bin",
+              "op": ">=",
+              "l": {
+                "k": "ref",
+                "name": "Adjusted Score",
+                "path": []
+              },
+              "r": {
+                "k": "num",
+                "v": 25
+              }
+            }
+          },
+          "a": {
+            "k": "str",
+            "v": "Sales"
+          },
+          "b": {
+            "k": "str",
+            "v": "Research"
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "account_summary",
+        "sourceName": "Account Summary",
+        "operation": "loader-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Domain",
+          "Priority",
+          "Routing Team"
+        ],
+        "expression": {
+          "k": "bin",
+          "op": "+",
+          "l": {
+            "k": "bin",
+            "op": "+",
+            "l": {
+              "k": "bin",
+              "op": "+",
+              "l": {
+                "k": "bin",
+                "op": "+",
+                "l": {
+                  "k": "ref",
+                  "name": "Domain",
+                  "path": []
+                },
+                "r": {
+                  "k": "str",
+                  "v": " | "
+                }
+              },
+              "r": {
+                "k": "ref",
+                "name": "Priority",
+                "path": []
+              }
+            },
+            "r": {
+              "k": "str",
+              "v": " | "
+            }
+          },
+          "r": {
+            "k": "ref",
+            "name": "Routing Team",
+            "path": []
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "score_band",
+        "sourceName": "Score Band",
+        "operation": "loader-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Adjusted Score"
+        ],
+        "expression": {
+          "k": "cond",
+          "test": {
+            "k": "bin",
+            "op": ">=",
+            "l": {
+              "k": "ref",
+              "name": "Adjusted Score",
+              "path": []
+            },
+            "r": {
+              "k": "num",
+              "v": 25
+            }
+          },
+          "a": {
+            "k": "str",
+            "v": "A"
+          },
+          "b": {
+            "k": "str",
+            "v": "B"
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "routing_label",
+        "sourceName": "Routing Label",
+        "operation": "loader-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Routing Team",
+          "Score Band"
+        ],
+        "expression": {
+          "k": "bin",
+          "op": "+",
+          "l": {
+            "k": "bin",
+            "op": "+",
+            "l": {
+              "k": "ref",
+              "name": "Routing Team",
+              "path": []
+            },
+            "r": {
+              "k": "str",
+              "v": " / "
+            }
+          },
+          "r": {
+            "k": "ref",
+            "name": "Score Band",
+            "path": []
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "ready_flag",
+        "sourceName": "Ready Flag",
+        "operation": "loader-formula",
+        "outputType": "boolean",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Domain Status",
+          "Score Band"
+        ],
+        "expression": {
+          "k": "bin",
+          "op": "&&",
+          "l": {
+            "k": "bin",
+            "op": "===",
+            "l": {
+              "k": "ref",
+              "name": "Domain Status",
+              "path": []
+            },
+            "r": {
+              "k": "str",
+              "v": "Ready"
+            }
+          },
+          "r": {
+            "k": "bin",
+            "op": "===",
+            "l": {
+              "k": "ref",
+              "name": "Score Band",
+              "path": []
+            },
+            "r": {
+              "k": "str",
+              "v": "A"
+            }
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "followup_days",
+        "sourceName": "Followup Days",
+        "operation": "loader-formula",
+        "outputType": "number",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Ready Flag"
+        ],
+        "expression": {
+          "k": "cond",
+          "test": {
+            "k": "ref",
+            "name": "Ready Flag",
+            "path": []
+          },
+          "a": {
+            "k": "num",
+            "v": 1
+          },
+          "b": {
+            "k": "num",
+            "v": 7
+          }
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "uppercase_domain",
+        "sourceName": "Uppercase Domain",
+        "operation": "loader-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Domain"
+        ],
+        "expression": {
+          "k": "method",
+          "receiver": {
+            "k": "ref",
+            "name": "Domain",
+            "path": []
+          },
+          "method": "toUpperCase",
+          "optional": true,
+          "args": []
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "domain_length",
+        "sourceName": "Domain Length",
+        "operation": "loader-formula",
+        "outputType": "number",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Domain"
+        ],
+        "expression": {
+          "k": "ref",
+          "name": "Domain",
+          "path": [
+            "length"
+          ],
+          "optionalPath": [
+            true
+          ]
+        },
+        "execution": "import",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      }
+    ]
+  },
+  "availableAdapters": [
+    {
+      "id": "company-from-domain",
+      "job": "Enrich company from domain"
+    },
+    {
+      "id": "person-from-linkedin",
+      "job": "Enrich person from LinkedIn URL"
+    },
+    {
+      "id": "find-email-prospeo",
+      "job": "Find work email from name + domain (Prospeo)"
+    },
+    {
+      "id": "find-email",
+      "job": "Find work email from name + domain"
+    },
+    {
+      "id": "verify-email",
+      "job": "Verify / validate email"
+    }
+  ]
+}

@@ -7,3 +7,5 @@ node_modules/
 **/cargo.state.lock
 **/cargo.state.audit.jsonl
 .DS_Store
+
+.migration-checkpoints/

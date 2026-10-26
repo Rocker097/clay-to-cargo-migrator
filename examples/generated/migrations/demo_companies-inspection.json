@@ -15,6 +15,8 @@
       "dependencies": [],
       "status": "supported",
       "kind": "input",
+      "outputType": "string",
+      "typeSource": "export",
       "notes": [],
       "verification": []
     },
@@ -28,6 +30,8 @@
       ],
       "status": "review",
       "kind": "action",
+      "outputType": "string",
+      "typeSource": "adapter",
       "adapter": "company-from-domain",
       "targetAction": "linkedin.enrichCompanyFromDomain",
       "notes": [
@@ -45,6 +49,8 @@
       ],
       "status": "supported",
       "kind": "body-formula",
+      "outputType": "string",
+      "typeSource": "inferred",
       "formula": "{{@Enrich company}}?.name",
       "notes": [
         "Computed in the play after the columns it reads: `{{@Enrich company}}?.name`"
@@ -61,6 +67,8 @@
       ],
       "status": "supported",
       "kind": "body-formula",
+      "outputType": "number",
+      "typeSource": "inferred",
       "formula": "{{@Enrich company}}?.employee_count",
       "notes": [
         "Computed in the play after the columns it reads: `{{@Enrich company}}?.employee_count`"
@@ -77,6 +85,8 @@
       ],
       "status": "supported",
       "kind": "body-formula",
+      "outputType": "boolean",
+      "typeSource": "inferred",
       "formula": "{{@Employee Count}} >= 50 && {{@Employee Count}} <= 1000",
       "notes": [
         "Computed in the play after the columns it reads: `{{@Employee Count}} >= 50 && {{@Employee Count}} <= 1000`"
@@ -93,6 +103,8 @@
       ],
       "status": "review",
       "kind": "ai",
+      "outputType": "string",
+      "typeSource": "adapter",
       "notes": [
         "Clay AI column becomes a Cargo agent with a JSON answer, wrapped in a tool. Prompt carried over with column references wired in."
       ],
@@ -102,6 +114,167 @@
       ]
     }
   ],
+  "workflow": {
+    "version": 1,
+    "name": "demo_companies",
+    "nodes": [
+      {
+        "id": "company_website",
+        "sourceName": "Company Website",
+        "operation": "input",
+        "outputType": "string",
+        "typeSource": "export",
+        "dependencies": [],
+        "execution": "import",
+        "missingValues": "Adapter-defined; review provider contract",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "enrich_company",
+        "sourceName": "Enrich company",
+        "operation": "action",
+        "outputType": "string",
+        "typeSource": "adapter",
+        "dependencies": [
+          "Company Website"
+        ],
+        "execution": "cargo",
+        "missingValues": "Adapter-defined; review provider contract",
+        "adapter": "company-from-domain",
+        "existingValueReuse": {
+          "flag": "reuse_enrich_company",
+          "raw": "saved_enrich_company_raw",
+          "sourceColumn": "Enrich company",
+          "fields": [
+            {
+              "field": "company_name",
+              "type": "string",
+              "csv": "Name",
+              "slug": "saved_enrich_company_company_name"
+            },
+            {
+              "field": "employee_count",
+              "type": "number",
+              "csv": "Employee Count",
+              "slug": "saved_enrich_company_employee_count"
+            }
+          ]
+        },
+        "adaptation": {
+          "from": "cpj",
+          "to": "linkedin.enrichCompanyFromDomain"
+        },
+        "generated": true
+      },
+      {
+        "id": "name",
+        "sourceName": "Name",
+        "operation": "body-formula",
+        "outputType": "string",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Enrich company"
+        ],
+        "expression": {
+          "k": "ref",
+          "name": "Enrich company",
+          "path": [
+            "name"
+          ],
+          "optionalPath": [
+            true
+          ]
+        },
+        "execution": "cargo",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "employee_count",
+        "sourceName": "Employee Count",
+        "operation": "body-formula",
+        "outputType": "number",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Enrich company"
+        ],
+        "expression": {
+          "k": "ref",
+          "name": "Enrich company",
+          "path": [
+            "employee_count"
+          ],
+          "optionalPath": [
+            true
+          ]
+        },
+        "execution": "cargo",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "mid_size_employee_flag",
+        "sourceName": "Mid-Size Employee Flag",
+        "operation": "body-formula",
+        "outputType": "boolean",
+        "typeSource": "inferred",
+        "dependencies": [
+          "Employee Count"
+        ],
+        "expression": {
+          "k": "bin",
+          "op": "&&",
+          "l": {
+            "k": "bin",
+            "op": ">=",
+            "l": {
+              "k": "ref",
+              "name": "Employee Count",
+              "path": []
+            },
+            "r": {
+              "k": "num",
+              "v": 50
+            }
+          },
+          "r": {
+            "k": "bin",
+            "op": "<=",
+            "l": {
+              "k": "ref",
+              "name": "Employee Count",
+              "path": []
+            },
+            "r": {
+              "k": "num",
+              "v": 1000
+            }
+          }
+        },
+        "execution": "cargo",
+        "missingValues": "See explicit optional access / nullish operators in expression",
+        "existingValueReuse": null,
+        "generated": true
+      },
+      {
+        "id": "employee_fit_status",
+        "sourceName": "Employee Fit Status",
+        "operation": "ai",
+        "outputType": "string",
+        "typeSource": "adapter",
+        "dependencies": [
+          "Employee Count"
+        ],
+        "execution": "cargo",
+        "missingValues": "Adapter-defined; review provider contract",
+        "existingValueReuse": null,
+        "generated": true
+      }
+    ]
+  },
   "availableAdapters": [
     {
       "id": "company-from-domain",

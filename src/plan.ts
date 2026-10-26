@@ -27,9 +27,12 @@ import {
   normalizeBindingName,
   type ActionMapping,
 } from "./mappings.ts";
+import { planReuse } from "./reuse.ts";
+import { inferType } from "./types.ts";
 import { camel, SlugRegistry } from "./naming.ts";
 
 export type ColumnKind =
+  | "reuse-cache"
   | "input"
   | "loader-formula"
   | "body-formula"
@@ -50,6 +53,7 @@ export interface ToolParam {
 }
 
 export interface PlannedColumn {
+  reuse?: import("./import-runtime.ts").ReuseSpec;
   clay: ClayColumn;
   slug: string;
   kind: ColumnKind;
@@ -60,6 +64,8 @@ export interface PlannedColumn {
   cargoType: "string" | "number" | "boolean" | "date";
   // loader-formula
   loaderExpr?: string;
+  expression?: Node;
+  typeSource?: "export" | "inferred";
   // body-formula
   bodyExpr?: string;
   // action / ai
@@ -91,7 +97,7 @@ class Blocked extends Error {}
 
 export interface MappingOverrides {
   /** Exact Clay action key to an existing verified mapping ID. */
-  actions?: Record<string, string>;
+  actions?: Record<string, string | { adapter: string; inputAliases?: Record<string,string>; outputAliases?: Record<string,string> }>;
 }
 
 export function planMigration(schema: ClaySchema, name: string, overrides: MappingOverrides = {}): MigrationPlan {
@@ -108,7 +114,7 @@ export function planMigration(schema: ClaySchema, name: string, overrides: Mappi
       generated: false,
       notes: [],
       verify: [],
-      cargoType: cargoColumnType(ts.dataTypeSettings?.type ?? ts.formulaType),
+      cargoType: cargoColumnType(ts.dataTypeSettings?.type ?? ts.formulaType ?? clay.type),
       usedFields: new Map(),
     };
     columns.push(col);
@@ -118,7 +124,10 @@ export function planMigration(schema: ClaySchema, name: string, overrides: Mappi
       if (clay.type === "source") {
         col.kind = "source";
         col.notes.push("Rows come in through the generated load-rows script (or a Cargo extractor) instead of a Clay source.");
-      } else if (clay.type === "text") {
+      } else if (["text", "number", "boolean", "checkbox", "currency", "percent", "date", "datetime", "url", "email"].includes(clay.type)) {
+        col.typeSource = "export";
+        const declared = ts.dataTypeSettings?.type ?? clay.type;
+        if (!["text","string","number","boolean","checkbox","currency","percent","date","datetime","url","email"].includes(declared.toLowerCase())) throw new Blocked(`Structured or unknown input type ${declared} is not supported`);
         col.kind = "input";
         col.generated = true;
       } else if (clay.type === "formula") {
@@ -136,7 +145,9 @@ export function planMigration(schema: ClaySchema, name: string, overrides: Mappi
     }
   }
 
-  return { name, modelSlug: `clay_${name}`, modelVar: camel(`clay_${name}`), columns };
+  const plan = { name, modelSlug: `clay_${name}`, modelVar: camel(`clay_${name}`), columns };
+  planReuse(plan);
+  return plan;
 }
 
 /** Stable dependency order; cycles and ambiguous names fail before generation. */
@@ -216,9 +227,17 @@ function planFormula(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
   const text = col.clay.typeSettings?.formulaText ?? "";
   const ast = parseFormula(text);
   const deps = refsOf(ast).map((r) => lookup(byName, r.name, col));
+  col.expression = ast;
   const inputOnly = deps.every((d) => d.kind === "input" || d.kind === "loader-formula");
 
   if (inputOnly) {
+    // CSV inputs are scalar values, not arbitrary objects. Only a known
+    // string property is supported; never silently discard an unknown path.
+    for (const ref of refsOf(ast)) {
+      if (ref.path.length && !(ref.path.length === 1 && ref.path[0] === "length" && byName.get(ref.name)!.cargoType === "string")) {
+        throw new Blocked(`Unsupported input property "${ref.path.join(".")}" on "${ref.name}"; only string length is supported.`);
+      }
+    }
     // Computed once at load time. Runs as normal JavaScript, so functions a
     // Cargo workflow body cannot run (DOMAIN) are fine here.
     col.kind = "loader-formula";
@@ -229,6 +248,25 @@ function planFormula(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
     col.bodyExpr = emitBody(ast, (n, p) => playRef(byName, col, n, p));
     col.notes.push(`Computed in the play after the columns it reads: \`${text}\``);
   }
+  const inferred = inferType(ast, (name, path) => {
+    const dep = lookup(byName, name, col);
+    if (dep.kind === "action" || dep.kind === "ai") {
+      const field = outputField(dep, path, col);
+      if (dep.kind === "ai") return "string";
+      const known = dep.mapping!.knownOutputs[field];
+      if (!known) throw new Blocked(`Output type for ${name}.${field} is not verified`);
+      return known;
+    }
+    if (path.length) {
+      if (path.length === 1 && path[0] === "length" && dep.cargoType === "string") return "number";
+      throw new Blocked(`Unknown scalar property ${name}.${path.join(".")}`);
+    }
+    return dep.cargoType;
+  });
+  if (inferred === "null" || inferred === "undefined") throw new Blocked("Formula has no concrete result type");
+  if (inferred !== col.cargoType) col.notes.push(`Corrected exported type ${col.cargoType} to inferred ${inferred}.`);
+  col.cargoType = inferred;
+  col.typeSource = "inferred";
   col.generated = true;
 }
 
@@ -246,8 +284,16 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
 
   const ai = !overrides.actions?.[ts.actionKey ?? ""] && isAiAction(actionKey);
   const override = overrides.actions?.[ts.actionKey ?? ""];
-  const mapping = override ? ACTION_MAPPINGS.find(m => m.id === override) : ai ? undefined : findMapping(actionKey);
-  if (override && !mapping) throw new Error(`Unknown mapping ID: ${override}`);
+  const adapterId = typeof override === "string" ? override : override?.adapter;
+  let mapping = adapterId ? ACTION_MAPPINGS.find(m => m.id === adapterId) : ai ? undefined : findMapping(actionKey);
+  if (override && !mapping) throw new Error(`Unknown mapping ID: ${adapterId}`);
+  if (mapping && typeof override === "object") {
+    mapping = { ...mapping,
+      params: mapping.params.map(p => ({...p, clayAliases: override.inputAliases?.[p.cargoField] ? [normalizeBindingName(override.inputAliases[p.cargoField])] : p.clayAliases})),
+      fieldSynonyms: {...mapping.fieldSynonyms, ...override.outputAliases},
+    };
+    col.verify.push("Explicit input/output aliases were supplied. Verify their semantic equivalence against the source provider.");
+  }
 
   if (!ai && !mapping) {
     const known = KNOWN_UNVERIFIED.find((k) => k.match(actionKey));

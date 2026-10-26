@@ -13,6 +13,10 @@ const workflow = defineWorkflow(
   {
     input: z.object({
       domain: z.string().optional(), // Clay input "company_identifier": {{@Company Website}}
+      migrationReuse: z.boolean().optional(), // Explicit reuse of exported Clay values
+      savedRaw: z.string().optional(), // Original/exported result
+      saved_company_name: z.string().optional(), // CSV Name
+      saved_employee_count: z.number().optional(), // CSV Employee Count
     }),
     output: z.object({
       raw: z.string().optional(),
@@ -22,6 +26,10 @@ const workflow = defineWorkflow(
     uses: { linkedin },
   },
   ({ input, uses }) => {
+    if (input.migrationReuse) {
+      return { raw: input.savedRaw, company_name: input.saved_company_name, employee_count: input.saved_employee_count };
+    }
+
     const result = uses.linkedin.enrichCompanyFromDomain({
       domain: (input.domain ? input.domain.trim().toLowerCase().replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0].split("?")[0].split("#")[0] : ""),
     });

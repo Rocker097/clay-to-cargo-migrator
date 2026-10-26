@@ -1,0 +1,1256 @@
+[
+  {
+    "id": "renamed-reordered",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Tier",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Score}} >= 50 ? \"A\" : \"B\"",
+            "formulaType": "text"
+          },
+          "index": 0
+        },
+        {
+          "name": "Score",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Revenue}} * 2",
+            "formulaType": "text"
+          },
+          "index": 1
+        },
+        {
+          "name": "Revenue",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "number"
+            }
+          },
+          "index": 2
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Revenue": 25
+        },
+        "expected": {
+          "Score": 50,
+          "Tier": "A"
+        }
+      },
+      {
+        "input": {
+          "Revenue": 0
+        },
+        "expected": {
+          "Score": 0,
+          "Tier": "B"
+        }
+      }
+    ]
+  },
+  {
+    "id": "chain-trim-lower",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Site",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Clean",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Site}}?.trim().toLowerCase() ?? \"\"",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Site": " STRIPE.COM "
+        },
+        "expected": {
+          "Clean": "stripe.com"
+        }
+      },
+      {
+        "input": {},
+        "expected": {
+          "Clean": ""
+        }
+      }
+    ]
+  },
+  {
+    "id": "length-uppercase",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Site",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Length",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Site}}?.length",
+            "formulaType": "text"
+          },
+          "index": 1
+        },
+        {
+          "name": "Upper",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Site}}?.toUpperCase()",
+            "formulaType": "text"
+          },
+          "index": 2
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Site": "notion.so"
+        },
+        "expected": {
+          "Length": 9,
+          "Upper": "NOTION.SO"
+        }
+      },
+      {
+        "input": {},
+        "expected": {},
+        "expectedMissing": [
+          "Length",
+          "Upper"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "plain-replacement",
+    "origin": "synthetic",
+    "split": "holdout",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Site",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Clean",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Site}}.replaceAll(\"www.\", \"\").replace(\"https://\", \"\")",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Site": "https://www.stripe.com"
+        },
+        "expected": {
+          "Clean": "stripe.com"
+        }
+      }
+    ]
+  },
+  {
+    "id": "slice-substring",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Name",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Prefix",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Name}}.slice(0, 3)",
+            "formulaType": "text"
+          },
+          "index": 1
+        },
+        {
+          "name": "Middle",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Name}}.substring(1, 4)",
+            "formulaType": "text"
+          },
+          "index": 2
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Name": "Cargo"
+        },
+        "expected": {
+          "Prefix": "Car",
+          "Middle": "arg"
+        }
+      }
+    ]
+  },
+  {
+    "id": "string-predicates",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Site",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Good",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Site}}.startsWith(\"https\") && {{@Site}}.endsWith(\".com\")",
+            "formulaType": "text"
+          },
+          "index": 1
+        },
+        {
+          "name": "Found",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Site}}.includes(\"cargo\")",
+            "formulaType": "text"
+          },
+          "index": 2
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Site": "https://cargo.com"
+        },
+        "expected": {
+          "Good": true,
+          "Found": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "zero-nullish",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Count",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "number"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Safe",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Count}} ?? 5",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Count": 0
+        },
+        "expected": {
+          "Safe": 0
+        }
+      },
+      {
+        "input": {},
+        "expected": {
+          "Safe": 5
+        }
+      }
+    ]
+  },
+  {
+    "id": "false-coalesce",
+    "origin": "synthetic",
+    "split": "holdout",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Flag",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "boolean"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Safe",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "COALESCE({{@Flag}}, true)",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Flag": false
+        },
+        "expected": {
+          "Safe": false
+        }
+      },
+      {
+        "input": {},
+        "expected": {
+          "Safe": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "null-fallback",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Safe",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "null ?? \"fallback\"",
+            "formulaType": "text"
+          },
+          "index": 0
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {},
+        "expected": {
+          "Safe": "fallback"
+        }
+      }
+    ]
+  },
+  {
+    "id": "nested-conditions",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Count",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "number"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Band",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "IF({{@Count}} > 100, \"Large\", {{@Count}} > 10 ? \"Medium\" : \"Small\")",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Count": 5
+        },
+        "expected": {
+          "Band": "Small"
+        }
+      },
+      {
+        "input": {
+          "Count": 101
+        },
+        "expected": {
+          "Band": "Large"
+        }
+      }
+    ]
+  },
+  {
+    "id": "unicode-concat",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Name",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Label",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "CONCAT(\"Hi \", {{@Name}}, \"!\")",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Name": "\u00c9cole"
+        },
+        "expected": {
+          "Label": "Hi \u00c9cole!"
+        }
+      }
+    ]
+  },
+  {
+    "id": "url-domain-function",
+    "origin": "synthetic",
+    "split": "holdout",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Site",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Host",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "DOMAIN({{@Site}})",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Site": "https://www.stripe.com/path"
+        },
+        "expected": {
+          "Host": "stripe.com"
+        }
+      }
+    ]
+  },
+  {
+    "id": "mixed-branch-types",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Flag",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "boolean"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Mixed",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Flag}} ? 1 : \"one\"",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "expectedBlocked": [
+      "Mixed"
+    ]
+  },
+  {
+    "id": "unsupported-method",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Name",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Bad",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Name}}.execute()",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "expectedBlocked": [
+      "Bad"
+    ]
+  },
+  {
+    "id": "missing-dependency",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Missing",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Absent}} + 1",
+            "formulaType": "text"
+          },
+          "index": 0
+        },
+        {
+          "name": "Dependent",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Missing}} + 1",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "expectedBlocked": [
+      "Missing",
+      "Dependent"
+    ]
+  },
+  {
+    "id": "cycle",
+    "origin": "synthetic",
+    "split": "holdout",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "A",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@B}}",
+            "formulaType": "text"
+          },
+          "index": 0
+        },
+        {
+          "name": "B",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@A}}",
+            "formulaType": "text"
+          },
+          "index": 1
+        }
+      ]
+    },
+    "expectedError": "Dependency cycle"
+  },
+  {
+    "id": "duplicate-name",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "A",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "A",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 1
+        }
+      ]
+    },
+    "expectedError": "Duplicate column"
+  },
+  {
+    "id": "unmapped-http",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Site",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Request",
+          "type": "action",
+          "typeSettings": {
+            "actionKey": "http-api-request",
+            "inputsBinding": [
+              {
+                "name": "url",
+                "formulaText": "{{@Site}}"
+              }
+            ]
+          },
+          "index": 1
+        }
+      ]
+    },
+    "expectedBlocked": [
+      "Request"
+    ]
+  },
+  {
+    "id": "explicit-adapter-alias",
+    "origin": "synthetic",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "Site",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Lookup",
+          "type": "action",
+          "typeSettings": {
+            "actionKey": "bespoke-lookup",
+            "inputsBinding": [
+              {
+                "name": "company_site",
+                "formulaText": "{{@Site}}"
+              }
+            ]
+          },
+          "index": 1
+        },
+        {
+          "name": "Link",
+          "type": "formula",
+          "typeSettings": {
+            "formulaText": "{{@Lookup}}.profile",
+            "formulaType": "text"
+          },
+          "index": 2
+        }
+      ]
+    },
+    "mappings": {
+      "actions": {
+        "bespoke-lookup": {
+          "adapter": "company-from-domain",
+          "inputAliases": {
+            "domain": "company_site"
+          },
+          "outputAliases": {
+            "profile": "linkedin_url"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "email-waterfall",
+    "origin": "synthetic",
+    "split": "holdout",
+    "schema": {
+      "version": "1.0",
+      "columns": [
+        {
+          "name": "First",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 0
+        },
+        {
+          "name": "Last",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 1
+        },
+        {
+          "name": "Domain",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          },
+          "index": 2
+        },
+        {
+          "name": "Primary",
+          "type": "action",
+          "typeSettings": {
+            "actionKey": "prospeo-find-email",
+            "inputsBinding": [
+              {
+                "name": "first_name",
+                "formulaText": "{{@First}}"
+              },
+              {
+                "name": "last_name",
+                "formulaText": "{{@Last}}"
+              },
+              {
+                "name": "domain",
+                "formulaText": "{{@Domain}}"
+              }
+            ]
+          },
+          "index": 3
+        },
+        {
+          "name": "Fallback",
+          "type": "action",
+          "typeSettings": {
+            "actionKey": "hunter-find-email",
+            "inputsBinding": [
+              {
+                "name": "first_name",
+                "formulaText": "{{@First}}"
+              },
+              {
+                "name": "last_name",
+                "formulaText": "{{@Last}}"
+              },
+              {
+                "name": "domain",
+                "formulaText": "{{@Domain}}"
+              }
+            ],
+            "conditionalRunFormulaText": "!{{@Primary}}.email"
+          },
+          "index": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "real-six",
+    "origin": "real-export",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "exportedAt": "2026-10-21T15:01:08.380Z",
+      "columnCount": 6,
+      "columns": [
+        {
+          "index": 0,
+          "name": "Company Website",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          }
+        },
+        {
+          "index": 1,
+          "name": "Name",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Enrich company}}?.name",
+            "mappedResultPath": [
+              "name"
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "name": "Employee Count",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "number"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Enrich company}}?.employee_count",
+            "mappedResultPath": [
+              "employee_count"
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "name": "Enrich company",
+          "type": "action",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "json"
+            },
+            "actionKey": "cpj-enrich-company",
+            "actionVersion": 1,
+            "inputsBinding": [
+              {
+                "name": "company_identifier",
+                "formulaText": "{{@Company Website}}"
+              }
+            ],
+            "runAsButton": true
+          }
+        },
+        {
+          "index": 4,
+          "name": "Mid-Size Employee Flag",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "boolean"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Employee Count}} >= 50 && {{@Employee Count}} <= 1000",
+            "formulaPrompt": "\"Return true if Employee Count is between 50 and 1000 inclusive, otherwise false.\""
+          }
+        },
+        {
+          "index": 5,
+          "name": "Employee Fit Status",
+          "type": "action",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "json"
+            },
+            "actionKey": "use-ai",
+            "actionVersion": 1,
+            "inputsBinding": [
+              {
+                "name": "useCase",
+                "formulaText": "\"use-ai\""
+              },
+              {
+                "name": "prompt",
+                "formulaText": "\"Return FIT if the employee count is between 50 and 1000 inclusive; otherwise return NOT FIT. Use only this employee count: \" + Clay.formatForAIPrompt({{@Employee Count}})"
+              },
+              {
+                "name": "temperature"
+              },
+              {
+                "name": "reasoningLevel"
+              },
+              {
+                "name": "reasoningBudget"
+              },
+              {
+                "name": "claygentId"
+              },
+              {
+                "name": "claygentFieldMapping"
+              },
+              {
+                "name": "maxTokens"
+              },
+              {
+                "name": "model",
+                "formulaText": "\"gpt-4o\""
+              },
+              {
+                "name": "maxCostInCents"
+              },
+              {
+                "name": "jsonMode"
+              },
+              {
+                "name": "systemPrompt"
+              },
+              {
+                "name": "answerSchemaType",
+                "formulaMap": {
+                  "type": "\"json\"",
+                  "fields": "{\"response\":{\"type\":\"string\"}}"
+                }
+              },
+              {
+                "name": "tableExamples"
+              },
+              {
+                "name": "stopSequence"
+              },
+              {
+                "name": "runBudget",
+                "formulaText": "1"
+              },
+              {
+                "name": "topP"
+              },
+              {
+                "name": "contextDocumentIds"
+              },
+              {
+                "name": "mcpSettings"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "real-fifteen",
+    "origin": "real-export",
+    "split": "development",
+    "schema": {
+      "version": "1.0",
+      "columnCount": 15,
+      "columns": [
+        {
+          "index": 0,
+          "name": "Url",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "url"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Enrich Company}}.url"
+          }
+        },
+        {
+          "index": 1,
+          "name": "Domain",
+          "type": "text",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            }
+          }
+        },
+        {
+          "index": 2,
+          "name": "Enrich Company",
+          "type": "action",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "json"
+            },
+            "actionKey": "enrich-company-with-mixrank-v2",
+            "inputsBinding": [
+              {
+                "name": "company_identifier",
+                "formulaText": "{{@Domain}}"
+              }
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "name": "Domain Status",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Domain}} ? \"Ready\" : \"Missing domain\""
+          }
+        },
+        {
+          "index": 4,
+          "name": "Readiness Score",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Domain Status}} === \"Ready\" ? 10 : 0"
+          }
+        },
+        {
+          "index": 5,
+          "name": "Priority",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Readiness Score}} >= 10 ? \"High\" : \"Review\""
+          }
+        },
+        {
+          "index": 6,
+          "name": "Adjusted Score",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Readiness Score}} * 2 + 5"
+          }
+        },
+        {
+          "index": 7,
+          "name": "Routing Team",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Priority}} === \"High\" && {{@Adjusted Score}} >= 25 ? \"Sales\" : \"Research\""
+          }
+        },
+        {
+          "index": 8,
+          "name": "Account Summary",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Domain}} + \" | \" + {{@Priority}} + \" | \" + {{@Routing Team}}"
+          }
+        },
+        {
+          "index": 9,
+          "name": "Score Band",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Adjusted Score}} >= 25 ? \"A\" : \"B\""
+          }
+        },
+        {
+          "index": 10,
+          "name": "Routing Label",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Routing Team}} + \" / \" + {{@Score Band}}"
+          }
+        },
+        {
+          "index": 11,
+          "name": "Ready Flag",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Domain Status}} === \"Ready\" && {{@Score Band}} === \"A\""
+          }
+        },
+        {
+          "index": 12,
+          "name": "Followup Days",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Ready Flag}} ? 1 : 7"
+          }
+        },
+        {
+          "index": 13,
+          "name": "Uppercase Domain",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Domain}}?.toUpperCase()"
+          }
+        },
+        {
+          "index": 14,
+          "name": "Domain Length",
+          "type": "formula",
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{@Domain}}?.length"
+          }
+        }
+      ]
+    },
+    "rows": [
+      {
+        "input": {
+          "Domain": "notion.so"
+        },
+        "expected": {
+          "Domain Length": 9,
+          "Uppercase Domain": "NOTION.SO",
+          "Followup Days": 1,
+          "Routing Label": "Sales / A"
+        }
+      },
+      {
+        "input": {},
+        "expected": {
+          "Followup Days": 7,
+          "Ready Flag": false
+        },
+        "expectedMissing": [
+          "Domain Length",
+          "Uppercase Domain"
+        ]
+      }
+    ]
+  }
+]

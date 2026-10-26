@@ -67,7 +67,13 @@ The inspection lists every column, dependency, target action, original formula/c
 - `review`: generated with a provider substitution or configuration requiring verification. This does not establish semantic parity.
 - `blocked`: unsupported operation, missing dependency, unrecognized action input or unknown output field.
 
-Compilation stops before writing files if any column is blocked. Resolve the schema or mapping first. `--allow-partial` explicitly generates an incomplete draft, with all omissions recorded. CRM writes and source steps also block a complete migration; they are not silently skipped. Duplicate column names and cycles fail validation.
+Compilation stops before writing files if any column is blocked. Resolve the schema or mapping first. `--allow-partial` explicitly generates an incomplete draft, with all omissions recorded. CRM writes and source steps also block a complete migration; they are not silently skipped. Duplicate column names and cycles fail validation. Formula output types are inferred; incompatible mixed result types are blocked.
+
+### Adaptability update (v0.3)
+
+The compiler now infers formula result types, exposes a normalized workflow representation, supports additional input string operations and nullish handling, and generates an importer with stable IDs, existing-row checks, checkpoints and opt-in mapped enrichment reuse. [Read the implementation, commands, evaluation scope and operational limits](docs/ADAPTABILITY.md).
+
+Run `npm run evaluate` for the clearly labelled synthetic/real-export test report. This is not evidence of 70–80% customer coverage. New input methods are still blocked inside Cargo workflow bodies until separately validated.
 
 ### Reuse an adapter for an unfamiliar action key
 
@@ -118,12 +124,12 @@ There are no credentials, live deployment pointers, private workspace links or r
 
 ## Scope and limits
 
-- Supported formula subset: references, one field level, literals, arithmetic, comparisons, boolean operators, ternaries, DOMAIN (loader), COALESCE, IF, CONCATENATE, LOWER, UPPER, TRIM, CONTAINS and LEN.
+- Supported formula subset includes references, literals, arithmetic, comparisons, booleans, ternaries, nullish defaults and documented string functions/methods. Complex objects, arrays, regex and arbitrary scripts remain unsupported. See the v0.3 adaptability guide.
 - Prompt expressions support primitive formatting. Object formatting and unknown helper calls need manual review.
 - Common HTTP(S) website normalization is covered; unusual identifiers and URLs need review.
 - Action mappings are heuristic and finite. Native waterfall definitions, arbitrary exports, table relationships, arbitrary HTTP calls and full AI configuration preservation are unfinished.
 - Email tools and conditional rungs can be generated. A successful real-person email waterfall was not tested in this comparison.
-- CSV import creates rows; deduplication, safe reruns and importing existing enriched values remain unfinished.
+- Imports require stable IDs, skip identical existing rows, and stop on changed/ambiguous rows. Atomic cross-machine upserts and automatic updates remain unfinished. Mapped scalar enrichment reuse is opt-in; AI and arbitrary provider JSON reuse remain unsupported.
 - No automatic schedules, CRM writes or bulk enrollment are enabled by this demo.
 - Live API schemas and costs can change. Dependencies are pinned to the tested versions, not automatically upgraded.
 

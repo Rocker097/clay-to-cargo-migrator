@@ -44,6 +44,11 @@ export function parseClaySchema(json: string): ClaySchema {
     if (!c || typeof c !== "object") throw new Error(`Invalid column at position ${position}.`);
     if (c.index === undefined) c.index = position;
     if (!Number.isFinite(c.index)) throw new Error(`Invalid index at position ${position}.`);
+    if (c.typeSettings !== undefined && (!c.typeSettings || typeof c.typeSettings !== "object" || Array.isArray(c.typeSettings))) throw new Error(`Invalid settings on ${c.name}`);
+    const ts=c.typeSettings;
+    if(ts?.dataTypeSettings!==undefined&&(!ts.dataTypeSettings||typeof ts.dataTypeSettings!=="object"||(ts.dataTypeSettings.type!==undefined&&typeof ts.dataTypeSettings.type!=="string")))throw new Error(`Invalid data type settings on ${c.name}`);
+    if (ts?.inputsBinding !== undefined && (!Array.isArray(ts.inputsBinding) || ts.inputsBinding.some(b=>!b||typeof b.name!=="string"||!b.name||(b.formulaText!==undefined&&typeof b.formulaText!=="string")))) throw new Error(`Invalid input bindings on ${c.name}`);
+    for(const key of ["formulaText","conditionalRunFormulaText","actionKey"] as const) if(ts?.[key]!==undefined&&typeof ts[key]!=="string")throw new Error(`Invalid ${key} on ${c.name}`);
     if (typeof c.name !== "string" || !c.name.trim() || typeof c.type !== "string") {
       throw new Error(`Column at index ${c.index} is missing a name or type.`);
     }

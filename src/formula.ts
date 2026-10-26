@@ -16,7 +16,9 @@
 export class FormulaError extends Error {}
 
 export type Node =
-  | { k: "ref"; name: string; path: string[] }
+  | { k: "ref"; name: string; path: string[]; optionalPath?: boolean[] }
+  | { k: "method"; receiver: Node; method: string; optional: boolean; args: Node[] }
+  | { k: "nullish"; v: "null" | "undefined" }
   | { k: "str"; v: string }
   | { k: "num"; v: number }
   | { k: "bool"; v: boolean }
@@ -32,7 +34,7 @@ type Tok =
   | { t: "id"; v: string }
   | { t: "op"; v: string };
 
-const OPS = ["===", "!==", "?.", "&&", "||", "==", "!=", ">=", "<=", ">", "<", "!", "+", "-", "*", "/", "(", ")", ",", ".", "?", ":"];
+const OPS = ["===", "!==", "?.", "??", "&&", "||", "==", "!=", ">=", "<=", ">", "<", "!", "+", "-", "*", "/", "(", ")", ",", ".", "?", ":"];
 
 function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
@@ -89,7 +91,7 @@ function tokenize(src: string): Tok[] {
 }
 
 const PREC: Record<string, number> = {
-  "||": 1, "&&": 2, "==": 3, "!=": 3, "===": 3, "!==": 3,
+  "??": 1, "||": 1, "&&": 2, "==": 3, "!=": 3, "===": 3, "!==": 3,
   ">": 4, "<": 4, ">=": 4, "<=": 4, "+": 5, "-": 5, "*": 6, "/": 6,
 };
 
@@ -111,7 +113,8 @@ export function parseFormula(src: string): Node {
     else if (tok.t === "str") node = { k: "str", v: tok.v };
     else if (tok.t === "num") node = { k: "num", v: tok.v };
     else if (tok.t === "id") {
-      if (tok.v === "true" || tok.v === "false") node = { k: "bool", v: tok.v === "true" };
+      if (tok.v === "null" || tok.v === "undefined") node = { k: "nullish", v: tok.v };
+      else if (tok.v === "true" || tok.v === "false") node = { k: "bool", v: tok.v === "true" };
       else if (isOp("(")) {
         p++;
         const args: Node[] = [];
@@ -132,13 +135,30 @@ export function parseFormula(src: string): Node {
       return { k: "unary", op: tok.v, arg: primary() };
     } else throw new FormulaError(`Unexpected "${tok.v}"`);
 
-    // Member access: only on a column reference, one or more levels.
+    // Keep optional access in the AST; dropping it changes missing-value behavior.
     while (isOp(".") || isOp("?.")) {
+      const optional = isOp("?.");
       p++;
       const prop = toks[p++];
       if (!prop || prop.t !== "id") throw new FormulaError("Expected a property name after '.'");
+      if (isOp("(")) {
+        p++;
+        const args: Node[] = [];
+        if (!isOp(")")) {
+          args.push(expr(0));
+          while (isOp(",")) { p++; args.push(expr(0)); }
+        }
+        expectOp(")");
+        if (!["toUpperCase", "toLowerCase", "trim", "includes", "startsWith", "endsWith", "replace", "replaceAll", "slice", "substring"].includes(prop.v)) {
+          throw new FormulaError(`Method ${prop.v}() is not supported`);
+        }
+        const counts: Record<string, number[]> = {toUpperCase:[0],toLowerCase:[0],trim:[0],includes:[1],startsWith:[1],endsWith:[1],replace:[2],replaceAll:[2],slice:[1,2],substring:[1,2]};
+        if (!counts[prop.v].includes(args.length)) throw new FormulaError(`${prop.v}() expects ${counts[prop.v].join(" or ")} arguments`);
+        node = { k: "method", receiver: node, method: prop.v, optional, args };
+        continue;
+      }
       if (node.k !== "ref") throw new FormulaError("Property access is only supported on a column reference");
-      node = { ...node, path: [...node.path, prop.v] };
+      node = { ...node, path: [...node.path, prop.v], optionalPath: [...(node.optionalPath ?? []), optional] };
     }
     return node;
   }
@@ -173,6 +193,8 @@ export function refsOf(node: Node): { name: string; path: string[] }[] {
   switch (node.k) {
     case "ref":
       return [{ name: node.name, path: node.path }];
+    case "method":
+      return [...refsOf(node.receiver), ...node.args.flatMap(refsOf)];
     case "call":
       return node.args.flatMap(refsOf);
     case "unary":
@@ -192,8 +214,12 @@ export type RefResolver = (name: string, path: string[]) => string;
 export function emitBody(node: Node, resolve: RefResolver): string {
   const e = (n: Node): string => emitBody(n, resolve);
   switch (node.k) {
+    case "method":
+      throw new FormulaError(`${node.method}() method syntax is supported only in input/loader formulas; Cargo workflow translation needs separate verification`);
     case "ref":
       return resolve(node.name, node.path);
+    case "nullish":
+      return node.v;
     case "str":
       return JSON.stringify(node.v);
     case "num":
@@ -207,6 +233,7 @@ export function emitBody(node: Node, resolve: RefResolver): string {
     case "bin": {
       const l = e(node.l);
       const r = e(node.r);
+      if (node.op === "??") return `(${l} == null ? ${r} : ${l})`;
       if (node.op === "||") return `(${l} ? ${l} : ${r})`;
       const op = node.op === "==" ? "===" : node.op === "!=" ? "!==" : node.op;
       return `(${l} ${op} ${r})`;
@@ -219,7 +246,7 @@ export function emitBody(node: Node, resolve: RefResolver): string {
           return `(${a[0]} == null ? "" : ${a[0]})`;
         case "COALESCE":
           if (!a.length) throw new FormulaError("COALESCE needs arguments");
-          return a.slice(0, -1).reduceRight((acc, x) => `(${x} ? ${x} : ${acc})`, a[a.length - 1]);
+          return a.slice(0, -1).reduceRight((acc, x) => `(${x} == null ? ${acc} : ${x})`, a[a.length - 1]);
         case "IF":
           if (a.length !== 3) throw new FormulaError("IF needs three arguments");
           return `(${a[0]} ? ${a[1]} : ${a[2]})`;
@@ -248,7 +275,15 @@ export function emitLoader(node: Node, resolve: RefResolver): string {
   const e = (n: Node): string => emitLoader(n, resolve);
   switch (node.k) {
     case "ref":
-      return resolve(node.name, node.path);
+      return node.path.reduce((value, property, index) =>
+        `${value}${node.optionalPath?.[index] ? "?." : ""}[${JSON.stringify(property)}]`,
+        resolve(node.name, []));
+    case "method":
+      // Do not parenthesize a method chain: (x?.trim()).toUpperCase()
+      // would lose JavaScript's optional-chain short-circuit behavior.
+      return `${node.receiver.k === "ref" || node.receiver.k === "method" ? e(node.receiver) : "(" + e(node.receiver) + ")"}${node.optional ? "?." : "."}${node.method}(${node.args.map(e).join(", ")})`;
+    case "nullish":
+      return node.v;
     case "str":
       return JSON.stringify(node.v);
     case "num":
@@ -268,7 +303,8 @@ export function emitLoader(node: Node, resolve: RefResolver): string {
         case "DOMAIN":
           return `domainOf(${a[0]})`;
         case "COALESCE":
-          return `(${a.join(" || ")})`;
+          if (!a.length) throw new FormulaError("COALESCE needs arguments");
+          return `(${a.join(" ?? ")})`;
         case "IF":
           return `(${a[0]} ? ${a[1]} : ${a[2]})`;
         case "CONCATENATE":
