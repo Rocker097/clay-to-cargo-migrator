@@ -7,6 +7,10 @@ export type Row=Record<string,string|number|boolean|undefined>;
 export interface InputSpec {clay:string;slug:string;type:string}
 export interface FormulaSpec {slug:string;compute:(row:Row)=>unknown}
 export interface ReuseSpec {flag:string;raw:string;sourceColumn:string;fields:{slug:string;field:string;csv:string;type:string}[]}
+export function sourceRowId(source:string,key:string):string {
+ if(!source.trim()||!key.trim())throw new Error("Blank source namespace or stable ID");
+ return `${source}:${key}`;
+}
 export function domainOf(value:unknown):string {return String(value??'').trim().toLowerCase().replace(/^[a-z]+:\/\//,'').split(/[/?#]/)[0].replace(/^www\./,'');}
 export function parseCsv(text:string) {
  const records:string[][]=[];let field='',record:string[]=[],quoted=false;
@@ -38,7 +42,7 @@ export function prepareRows(csv:string,inputs:InputSpec[],formulas:FormulaSpec[]
   const key=options.idColumn?source[options.idColumn]:String(n+1);
   if(!key?.trim())throw new Error('blank stable ID');
   if(seen.has(key))throw new Error(`duplicate source ID ${key} (first seen on row ${seen.get(key)})`);seen.set(key,rowNo);
-  const row:Row={clay_row_id:`${options.source}:${key}`};
+  const row:Row={clay_row_id:sourceRowId(options.source,key)};
   for(const c of inputs){try{row[c.slug]=convert(source[c.clay],c.type);}catch(e){throw new Error(`"${c.clay}": ${(e as Error).message}`);}}
   for(const f of formulas){const value=f.compute(row);if(value!==null&&value!==undefined&&!['string','number','boolean'].includes(typeof value))throw new Error(`Non-scalar formula output ${f.slug}`);if(typeof value==='number'&&!Number.isFinite(value))throw new Error(`Non-finite formula output ${f.slug}`);row[f.slug]=value===null?undefined:value as Row[string];}
   for(const cache of reuse){row[cache.flag]=false;

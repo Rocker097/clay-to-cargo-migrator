@@ -3,7 +3,7 @@
 //
 //   inspect --schema <claymate.json> [--mappings <mappings.json>] [--out <inspection.json>]
 //   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
-//   parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--name <table>] [--id-column <col>]
+//   parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--name <table>] [--id-column <col>] [--source <loader-namespace>]
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -101,7 +101,7 @@ if(command === "propose") {
   const name = slugify(arg("name") ?? basename(schemaPath).replace(/\.(claymate\.)?json$/, ""), 24);
   const mappingFile = arg("mappings");
   const plan = planMigration(parseClaySchema(readFileSync(schemaPath, "utf8")), name, mappingFile ? parseOverrides(readFileSync(mappingFile, "utf8")) : {});
-  const result = runParity(plan, readFileSync(need("clay"), "utf8"), readFileSync(need("cargo"), "utf8"), arg("id-column"));
+  const result = runParity(plan, readFileSync(need("clay"), "utf8"), readFileSync(need("cargo"), "utf8"), arg("id-column"), arg("source"));
   const outPath = arg("out");
   if (outPath) writeFileSync(outPath, result);
   console.log(result);
@@ -113,6 +113,6 @@ if(command === "propose") {
   inspect --schema <claymate.json> [--mappings <mappings.json>] [--out <inspection.json>]
   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
   evaluate --cases <cases.json> [--out <results.json>]
-  parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--id-column <col>]`);
+  parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--id-column <col>] [--source <loader-namespace>]`);
   process.exit(command ? 1 : 0);
 }

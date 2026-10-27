@@ -160,3 +160,15 @@ Grounded in Cargo's own [clay-to-cargo recipe](https://github.com/getcargohq/car
 - LinkedIn profile enrichment notes the recipe's preferred `aiArk.enrichPerson` (0.1 credits, returns a verified email).
 - Claygent and web-research prompts warn that the generated agent cannot browse, and point to Cargo's prompt library.
 - The generated loader typechecks inside a Cargo repo, and CSV problems are listed all at once with row numbers. Imports still fail closed.
+
+### Review fixes and comparison IDs
+
+Formula generation preserves supported string escapes and the original `==` / `!=` operators. Unsupported escape forms are refused explicitly. AI columns requesting structured response formats or JSON schemas are blocked, including dependent columns, until that output contract is supported. Configured model and temperature settings are reported as dropped and require review.
+
+When comparing CSV exports, pass the same namespace supplied to the row loader:
+
+```sh
+npm run parity -- --schema table.json --clay clay.csv --cargo cargo.csv --id-column "Record ID" --source clay_my_table
+```
+
+The loader defaults its namespace to the generated model slug (for example `clay_my_table`). Omit `--source` only for Cargo exports with raw, unprefixed IDs. Comparison includes import-time formulas and rejects blank/duplicate IDs or zero matched rows. Numeric agreement still uses the existing 10% tolerance; AI text is counted for coverage, not scored for correctness.

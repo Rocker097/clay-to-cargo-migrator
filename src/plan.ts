@@ -350,6 +350,19 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
     }
   } else {
     // AI column: the prompt is text with {{@Column}} references in it.
+    const configured = (value: unknown) => value !== undefined && value !== null && value !== "";
+    const outputSetting = /responseformat|jsonschema|outputschema|structuredoutput|outputfields/;
+    const normalizeSetting = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    for (const [key, value] of Object.entries(ts)) {
+      if (outputSetting.test(normalizeSetting(key)) && configured(value)) throw new Blocked(`Unsupported AI output contract ${key}; refusing to replace it with answer-only text.`);
+      if (/^(model|modelname|languagemodel|temperature|reasoninglevel|reasoningbudget)$/.test(normalizeSetting(key)) && configured(value)) col.verify.push(`Dropped Clay AI setting ${key}: ${JSON.stringify(value)}. Configure and verify the Cargo agent explicitly.`);
+    }
+    for (const binding of bindings) {
+      const key = normalizeSetting(binding.name);
+      if (!configured(binding.formulaText)) continue;
+      if (outputSetting.test(key)) throw new Blocked(`Unsupported AI output contract ${binding.name}; refusing to replace it with answer-only text.`);
+      if (/^(model|modelname|languagemodel|temperature|reasoninglevel|reasoningbudget)$/.test(key)) col.verify.push(`Dropped Clay AI setting ${binding.name}: ${binding.formulaText}. Configure and verify the Cargo agent explicitly.`);
+    }
     const promptBinding = bindings.find((b) => /prompt|instruction|message/.test(normalizeBindingName(b.name))) ?? bindings[0];
     if (!promptBinding?.formulaText) throw new Blocked("AI column has no prompt to carry over.");
     col.agentVar = camel(`${col.slug}_agent`);

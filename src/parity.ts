@@ -8,6 +8,7 @@
 // and leaves the switch decision to a person.
 
 import { parseCsv } from "./csv.ts";
+import { sourceRowId } from "./import-runtime.ts";
 import type { MigrationPlan } from "./plan.ts";
 
 const norm = (v: string | undefined) => (v ?? "").trim().toLowerCase();
@@ -23,17 +24,24 @@ function matches(a: string, b: string): boolean {
   return false;
 }
 
-export function runParity(plan: MigrationPlan, clayCsv: string, cargoCsv: string, idColumn?: string): string {
+export function runParity(plan: MigrationPlan, clayCsv: string, cargoCsv: string, idColumn?: string, source?: string): string {
   const clay = parseCsv(clayCsv);
   const cargo = parseCsv(cargoCsv);
-  const cargoById = new Map(cargo.rows.map((r) => [r["clay_row_id"] ?? r["Clay Row Id"] ?? "", r]));
+  if (idColumn && !clay.headers.includes(idColumn)) throw new Error(`Missing ID column ${idColumn}`);
+  const cargoById = new Map<string, Record<string,string>>();
+  for (const row of cargo.rows) {
+    const id = row.clay_row_id ?? row["Clay Row Id"] ?? "";
+    if (!id.trim() || cargoById.has(id)) throw new Error("Duplicate or missing Cargo row ID");
+    cargoById.set(id, row);
+  }
+  const seen = new Set<string>();
 
   const pick = (row: Record<string, string>, keys: string[]) => {
     for (const k of keys) if (k in row) return row[k];
     return undefined;
   };
 
-  const compared = plan.columns.filter((c) => c.generated && (c.kind === "body-formula" || c.kind === "ai"));
+  const compared = plan.columns.filter((c) => c.generated && (c.kind === "loader-formula" || c.kind === "body-formula" || c.kind === "ai"));
   const lines = [
     "# Parity: Clay vs Cargo",
     "",
@@ -45,10 +53,13 @@ export function runParity(plan: MigrationPlan, clayCsv: string, cargoCsv: string
   const pairs = clay.rows
     .map((row, n) => {
       const id = idColumn ? row[idColumn] : String(n + 1);
-      return { clayRow: row, cargoRow: cargoById.get(id) };
+      if (!id?.trim() || seen.has(id)) throw new Error("Duplicate or missing Clay row ID");
+      seen.add(id);
+      return { clayRow: row, cargoRow: cargoById.get(source === undefined ? id : sourceRowId(source, id)) };
     })
     .filter((p) => p.cargoRow);
   joined = pairs.length;
+  if (!joined) throw new Error("No matching rows: check --id-column and --source (the namespace used by the loader).");
 
   for (const c of compared) {
     const keys = [c.slug, `custom__${c.slug}`, c.clay.name];

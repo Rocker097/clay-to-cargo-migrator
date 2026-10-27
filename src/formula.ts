@@ -72,8 +72,16 @@ function tokenize(src: string): Tok[] {
       let v = "";
       while (j < src.length && src[j] !== ch) {
         if (src[j] === "\\" && j + 1 < src.length) {
-          v += src[j + 1];
-          j += 2;
+          const escape = src[j + 1];
+          const simple: Record<string, string> = {n:"\n",r:"\r",t:"\t",b:"\b",f:"\f",v:"\v", "\\":"\\", "'":"'", '"':'"'};
+          if (escape in simple) { v += simple[escape]; j += 2; }
+          else if (escape === "u" || escape === "x") {
+            const length = escape === "u" ? 4 : 2;
+            const hex = src.slice(j + 2, j + 2 + length);
+            if (hex.length !== length || !/^[0-9a-f]+$/i.test(hex)) throw new FormulaError("Unsupported or invalid string escape");
+            v += String.fromCharCode(parseInt(hex, 16)); j += 2 + length;
+          } else if (escape === "0" && !/[0-9]/.test(src[j + 2] ?? "")) { v += "\0"; j += 2; }
+          else throw new FormulaError(`Unsupported string escape: \\${escape}`);
         } else v += src[j++];
       }
       if (j >= src.length) throw new FormulaError("Unclosed string literal");
@@ -265,7 +273,7 @@ export function emitBody(node: Node, resolve: RefResolver): string {
       const r = e(node.r);
       if (node.op === "??") return `(${l} == null ? ${r} : ${l})`;
       if (node.op === "||") return `(${l} ? ${l} : ${r})`;
-      const op = node.op === "==" ? "===" : node.op === "!=" ? "!==" : node.op;
+      const op = node.op;
       return `(${l} ${op} ${r})`;
     }
     case "call": {
@@ -329,7 +337,7 @@ export function emitLoader(node: Node, resolve: RefResolver): string {
     case "cond":
       return `(${e(node.test)} ? ${e(node.a)} : ${e(node.b)})`;
     case "bin": {
-      const op = node.op === "==" ? "===" : node.op === "!=" ? "!==" : node.op;
+      const op = node.op;
       return `(${e(node.l)} ${op} ${e(node.r)})`;
     }
     case "call": {
