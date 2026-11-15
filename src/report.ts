@@ -19,7 +19,7 @@ const KIND_LABEL: Record<string, string> = {
 function target(c: PlannedColumn): string {
   switch (c.kind) {
     case "input":
-      return `model column \`${c.slug}\``;
+      return c.frozen ? `model column \`${c.slug}\`, frozen from the Clay CSV` : `model column \`${c.slug}\``;
     case "loader-formula":
       return `model column \`${c.slug}\`, computed at load`;
     case "body-formula":

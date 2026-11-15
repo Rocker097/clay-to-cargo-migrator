@@ -69,6 +69,10 @@ The inspection lists every column, dependency, target action, original formula/c
 
 Compilation stops before writing files if any column is blocked. Resolve the schema or mapping first. `--allow-partial` explicitly generates an incomplete draft, with all omissions recorded. CRM writes and source steps also block a complete migration; they are not silently skipped. Duplicate column names and cycles fail validation. Formula output types are inferred; incompatible mixed result types are blocked.
 
+### CSV imports: `--freeze-blocked`
+
+When the migration is a CSV import of an existing Clay table, add `--freeze-blocked` to `inspect` or `compile`. A column Cargo cannot re-run (no mapped action, unsupported formula) then loads the value Clay already computed from the CSV, and every column that reads it can still migrate. Fields read off a frozen result (`{{@Enrich}}?.organization?.name`) are parsed out of the exported JSON at load time; if the export holds a display value instead, they load empty rather than failing. Frozen columns are marked for review: imported rows keep Clay's value, new rows added in Cargo will not compute it. Writes (CRM, write-to-table) are never frozen.
+
 ### Adaptability update (v0.3)
 
 The compiler now infers formula result types, exposes a normalized workflow representation, supports additional input string operations and nullish handling, and generates an importer with stable IDs, existing-row checks, checkpoints and opt-in mapped enrichment reuse. [Read the implementation, commands, evaluation scope and operational limits](docs/ADAPTABILITY.md).

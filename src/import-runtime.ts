@@ -11,6 +11,14 @@ export function sourceRowId(source:string,key:string):string {
  if(!source.trim()||!key.trim())throw new Error("Blank source namespace or stable ID");
  return `${source}:${key}`;
 }
+/** A field out of a value Clay exported as JSON text; objects come back as JSON text. */
+export function readPath(value:unknown,path:string[]):string|number|boolean|undefined {
+ const parse=(v:unknown)=>{if(typeof v==='string'&&/^\s*[\[{]/.test(v)){try{return JSON.parse(v);}catch{return undefined;}}return v;};
+ let v:any=parse(value);
+ for(const step of path){if(v===null||v===undefined||typeof v!=='object'||!Object.hasOwn(v,step))return undefined;v=parse(v[step]);}
+ if(v===null||v===undefined)return undefined;
+ return typeof v==='object'?JSON.stringify(v):v;
+}
 export function domainOf(value:unknown):string {return String(value??'').trim().toLowerCase().replace(/^[a-z]+:\/\//,'').split(/[/?#]/)[0].replace(/^www\./,'');}
 export function parseCsv(text:string) {
  const records:string[][]=[];let field='',record:string[]=[],quoted=false;

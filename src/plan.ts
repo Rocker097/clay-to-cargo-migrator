@@ -88,6 +88,8 @@ export interface PlannedColumn {
   promptTemplate?: string;
   /** Clay's own system prompt, when it is plain text. */
   aiSystemPrompt?: string;
+  /** Frozen: Clay's existing value is loaded from the CSV instead of re-run. */
+  frozen?: boolean;
 }
 
 export interface MigrationPlan {
@@ -103,6 +105,12 @@ class Blocked extends Error {}
 const LINKEDIN_HINT = /linkedin|\bli[ _-]?(url|profile)\b/i;
 
 export interface MappingOverrides {
+  /**
+   * CSV imports: a column that cannot be re-run in Cargo loads the value
+   * Clay already computed from the CSV export, so the columns that read it
+   * can still migrate. New rows will not compute it; the report says so.
+   */
+  freezeBlocked?: boolean;
   /** Exact Clay action key to an existing verified mapping ID. */
   actions?: Record<string, string | { adapter: string; inputAliases?: Record<string,string>; outputAliases?: Record<string,string> }>;
 }
@@ -169,6 +177,69 @@ export function expandSources(columns: ClayColumn[]): { columns: ClayColumn[]; v
   return { columns: rewritten, virtual };
 }
 
+// Side effects are never frozen: loading their old output would hide that
+// the write no longer happens.
+const SIDE_EFFECT = /write-to|send|create|update|upsert|push|delete|add-to|webhook/;
+
+let planning: { columns: PlannedColumn[]; byName: Map<string, PlannedColumn>; slugs: SlugRegistry; virtual: Map<string, PlannedColumn> } | undefined;
+
+function freezable(col: PlannedColumn): boolean {
+  if (col.generated || col.kind === "crm-write" || col.kind === "source") return false;
+  if (!["formula", "action"].includes(col.clay.type)) return false;
+  return !SIDE_EFFECT.test((col.clay.typeSettings?.actionKey ?? "").toLowerCase());
+}
+
+function freeze(col: PlannedColumn) {
+  const reason = col.notes.at(-1) ?? "not supported";
+  Object.assign(col, { kind: "input", generated: true, frozen: true, typeSource: "export", cargoType: "string",
+    mapping: undefined, providerSwap: undefined, aiOutputs: undefined, toolParams: undefined, actionArgs: undefined,
+    toolCondition: undefined, bodyExpr: undefined, loaderExpr: undefined, expression: undefined, usedFields: new Map() });
+  col.notes = [`Not re-runnable in Cargo (${reason.replace(/\.$/, "")}). Frozen: Clay's value loads from the CSV column "${col.clay.name}".`];
+  col.verify = [`Frozen from the Clay export: rows imported from the CSV keep Clay's value for "${col.clay.name}"; new rows added in Cargo will not compute it. Map it to a Cargo action or rewrite it to make it live.`];
+}
+
+/**
+ * A field read off a frozen column ({{@Enrich}}?.organization?.name) becomes
+ * its own load-time column, parsed out of the JSON Clay exported.
+ */
+function frozenField(dep: PlannedColumn, path: string[], consumer: PlannedColumn): PlannedColumn {
+  const ctx = planning!;
+  const name = `${dep.clay.name} → ${path.join(".")}`;
+  const cached = ctx.virtual.get(name);
+  if (cached) return cached;
+  const v: PlannedColumn = {
+    clay: { index: consumer.clay.index, name, type: "formula" },
+    slug: ctx.slugs.take(`${dep.slug} ${path.join(" ")}`, 30),
+    kind: "loader-formula", generated: true, typeSource: "inferred", cargoType: "string",
+    loaderExpr: `readPath(row[${JSON.stringify(dep.slug)}], ${JSON.stringify(path)})`,
+    notes: [`Read from frozen column "${dep.clay.name}" at load time (path ${path.join(".")}). Loaded as text.`],
+    verify: [`Needs the CSV cell for "${dep.clay.name}" to hold Clay's JSON result. If the export holds a display value instead, this field loads empty.`], usedFields: new Map(),
+  };
+  ctx.columns.splice(ctx.columns.indexOf(consumer), 0, v);
+  ctx.byName.set(name, v);
+  ctx.virtual.set(name, v);
+  return v;
+}
+
+/** Replace path reads on frozen columns with their load-time field columns. */
+function unfreezePaths(node: Node, byName: Map<string, PlannedColumn>, consumer: PlannedColumn): Node {
+  const go = (n: Node): Node => unfreezePaths(n, byName, consumer);
+  switch (node.k) {
+    case "ref": {
+      const dep = byName.get(node.name);
+      return dep?.frozen && node.path.length ? { k: "ref", name: frozenField(dep, node.path, consumer).clay.name, path: [] } : node;
+    }
+    case "array": return { ...node, items: node.items.map(go) };
+    case "index": return { ...node, receiver: go(node.receiver) };
+    case "method": return { ...node, receiver: go(node.receiver), args: node.args.map(go) };
+    case "call": return { ...node, args: node.args.map(go) };
+    case "unary": return { ...node, arg: go(node.arg) };
+    case "bin": return { ...node, l: go(node.l), r: go(node.r) };
+    case "cond": return { ...node, test: go(node.test), a: go(node.a), b: go(node.b) };
+    default: return node;
+  }
+}
+
 export function planMigration(schema: ClaySchema, name: string, overrides: MappingOverrides = {}): MigrationPlan {
   const slugs = new SlugRegistry(["clay_row_id", "migrated_at", "migration_status"]);
   const byName = new Map<string, PlannedColumn>();
@@ -176,6 +247,7 @@ export function planMigration(schema: ClaySchema, name: string, overrides: Mappi
   const expanded = expandSources(schema.columns);
   const sourceFields = new Map<string, string[]>();
   for (const [field, source] of expanded.virtual) sourceFields.set(source, [...(sourceFields.get(source) ?? []), field.slice(source.length + 1)]);
+  planning = { columns, byName, slugs, virtual: new Map() };
 
   for (const clay of dependencyOrder(expanded.columns)) {
     const ts = clay.typeSettings ?? {};
@@ -228,7 +300,9 @@ export function planMigration(schema: ClaySchema, name: string, overrides: Mappi
       else if (err instanceof FormulaError) col.notes.push(`Formula not supported: ${err.message}.`);
       else throw err;
     }
+    if (overrides.freezeBlocked && freezable(col)) freeze(col);
   }
+  planning = undefined;
 
   const plan = { name, modelSlug: `clay_${name}`, modelVar: camel(`clay_${name}`), columns };
   planReuse(plan);
@@ -358,6 +432,7 @@ function playRef(byName: Map<string, PlannedColumn>, from: PlannedColumn, name: 
   switch (dep.kind) {
     case "input":
     case "loader-formula":
+      if (path.length && dep.frozen) return `input.${frozenField(dep, path, from).slug}`;
       if (path.length) throw new Blocked(`Reads a property of "${name}", which is a plain value.`);
       return `input.${dep.slug}`;
     case "body-formula":
@@ -377,7 +452,7 @@ function playRef(byName: Map<string, PlannedColumn>, from: PlannedColumn, name: 
 
 function planFormula(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
   const text = col.clay.typeSettings?.formulaText ?? "";
-  const ast = parseFormula(text);
+  const ast = unfreezePaths(parseFormula(text), byName, col);
   const deps = refsOf(ast).map((r) => lookup(byName, r.name, col));
   col.expression = ast;
   const inputOnly = deps.every((d) => d.kind === "input" || d.kind === "loader-formula");
@@ -590,19 +665,26 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
       const ast = parseFormula(promptText.replace(/Clay\.formatForAIPrompt\s*\(/g, "CLAY_FORMAT("));
       for (const ref of refsOf(ast)) {
         const dep = lookup(byName, ref.name, col);
-        if (ref.path.length || !["input", "loader-formula", "body-formula"].includes(dep.kind)) {
+        // A scalar field of an enrichment or AI result ({{@Enrich}}.description)
+        // is plain text in a prompt. A whole result object is not: Clay
+        // formats it in its own way, so that still needs review.
+        const scalarResult = ref.path.length
+          ? (dep.kind === "action" || dep.kind === "ai") && outputField(dep, ref.path, col) !== "raw"
+          : dep.kind === "ai" && !dep.aiOutputs; // a plain AI answer is text
+        if ((ref.path.length && !dep.frozen && !scalarResult) || !(["input", "loader-formula", "body-formula"].includes(dep.kind) || scalarResult)) {
           throw new Blocked("AI prompt formatting of object results needs manual review.");
         }
       }
       const paramFor = new Map<string, string>();
       const expr = emitBody(ast, (name, path) => {
         const dep = lookup(byName, name, col);
-        if (!paramFor.has(name)) {
-          const param = camel(`ctx_${dep.slug}`);
-          paramFor.set(name, param);
-          col.toolParams!.push({ name: param, playExpr: playRef(byName, col, name, path), zod: "z.any().optional()", from: `prompt reads {{@${name}}}` });
+        const key = `${name}|${path.join(".")}`;
+        if (!paramFor.has(key)) {
+          const param = camel(`ctx_${dep.slug}${path.length ? "_" + path.join("_") : ""}`);
+          paramFor.set(key, param);
+          col.toolParams!.push({ name: param, playExpr: playRef(byName, col, name, path), zod: "z.any().optional()", from: `prompt reads {{@${name}}}${path.length ? "." + path.join(".") : ""}` });
         }
-        return `input.${paramFor.get(name)}`;
+        return `input.${paramFor.get(key)}`;
       });
       col.promptTemplate = "${" + expr + "}";
     } else col.promptTemplate = compilePromptTemplate(promptText, col, byName);

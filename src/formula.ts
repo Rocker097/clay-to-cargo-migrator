@@ -278,6 +278,11 @@ export function emitBody(node: Node, resolve: RefResolver): string {
         const r = e(node.receiver);
         return `(${r} ? ${r}.${node.method}() : ${r})`;
       }
+      // Same guard as CONTAINS(): a missing value is simply false.
+      if (["includes", "startsWith", "endsWith"].includes(node.method) && node.args.length === 1) {
+        const r = e(node.receiver);
+        return `(${r} ? ${r}.${node.method}(${e(node.args[0])}) : false)`;
+      }
       throw new FormulaError(`${node.method}() method syntax is supported only in input/loader formulas; Cargo workflow translation needs separate verification`);
     case "ref":
       return resolve(node.name, node.path);

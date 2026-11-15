@@ -35,7 +35,7 @@ export function inspectPlan(plan: MigrationPlan) {
       name: c.clay.name, sourceType: c.clay.type, cargoColumn: c.slug,
       executionOrder: order + 1, dependencies,
       status: !c.generated ? 'blocked' : c.verify.length || c.providerSwap || c.notes.some(n => n.includes('dropped')) ? 'review' : 'supported',
-      kind: c.kind, outputType: c.cargoType, typeSource: c.typeSource ?? "adapter", adapter: c.mapping?.id,
+      kind: c.kind, frozen: c.frozen ?? false, outputType: c.cargoType, typeSource: c.typeSource ?? "adapter", adapter: c.mapping?.id,
       targetAction: c.mapping ? `${c.mapping.connector.integration}.${c.mapping.action}` : undefined,
       formula: settings.formulaText, condition: settings.conditionalRunFormulaText,
       notes: c.notes, verification: c.verify,

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // clay-to-cargo: compile a Clay table into a deployable Cargo project.
 //
-//   inspect --schema <claymate.json> [--mappings <mappings.json>] [--out <inspection.json>]
-//   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
+//   inspect --schema <claymate.json> [--mappings <mappings.json>] [--freeze-blocked] [--out <inspection.json>]
+//   compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--freeze-blocked] [--allow-partial]
 //   parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--name <table>] [--id-column <col>] [--source <loader-namespace>]
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -57,7 +57,7 @@ if(command === "propose") {
   const rowCount = csv ? parseCsv(readFileSync(csv, "utf8")).rows.length : undefined;
 
   const mappingFile = arg("mappings");
-  const plan = planMigration(schema, name, mappingFile ? parseOverrides(readFileSync(mappingFile, "utf8")) : {});
+  const plan = planMigration(schema, name, { ...(mappingFile ? parseOverrides(readFileSync(mappingFile, "utf8")) : {}), freezeBlocked: process.argv.includes("--freeze-blocked") });
   const inspection = inspectPlan(plan);
   if (command === "inspect") {
     const json = JSON.stringify(inspection, null, 2) + "\n";
@@ -110,8 +110,8 @@ if(command === "propose") {
 
   propose --schema <schema.json> --out <review-packet.json>
   review-extension --schema <schema.json> --proposal <proposal.json> --fixtures <cases.json> [--approve --reviewer NAME --out <mappings.json>]
-  inspect --schema <claymate.json> [--mappings <mappings.json>] [--out <inspection.json>]
-  compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--allow-partial]
+  inspect --schema <claymate.json> [--mappings <mappings.json>] [--freeze-blocked] [--out <inspection.json>]
+  compile --schema <claymate.json> --out <cargo-repo> [--name <table>] [--csv <clay-export.csv>] [--mappings <mappings.json>] [--freeze-blocked] [--allow-partial]
   evaluate --cases <cases.json> [--out <results.json>]
   parity  --schema <claymate.json> --clay <clay-export.csv> --cargo <cargo-export.csv> [--id-column <col>] [--source <loader-namespace>]`);
   process.exit(command ? 1 : 0);
