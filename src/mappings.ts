@@ -72,6 +72,24 @@ const DOMAIN = ["company_identifier", "domain", "company_domain", "companydomain
 
 export const ACTION_MAPPINGS: ActionMapping[] = [
   {
+    // Clay's name -> domain lookups (get-domain-from-company-name,
+    // google-company-to-domain). Pipecorn's account match takes a company
+    // name and returns a typed domain; reported as a provider swap.
+    id: "domain-from-company-name",
+    job: "Find a company's domain from its name",
+    match: (k) => has(k, "domain") && (has(k, "company-name") || has(k, "company-to-domain")),
+    connector: { varName: "pipecorn", slug: "pipecorn", integration: "pipecorn" },
+    action: "enrichAccount",
+    params: [{ cargoField: "name", clayAliases: ["companyname", "company_name", "company", "name", "query"], required: true }],
+    droppedSettings: ["exclude", "language", "country"],
+    primaryField: "domain",
+    knownOutputs: { domain: "string", website: "string", company_name: "string", linkedin_url: "string" },
+    fieldSynonyms: { url: "website", name: "company_name" },
+    credits: 0.5,
+    recipeNote: "Name matching differs from Clay's Google-based lookup: ambiguous names (\"Mercury\", \"Notion\") can resolve to a different company. Spot-check domains in parity.",
+    provenance: "Cargo workspace connector schema (cargo-ai connection integration list, exported 2026-11-15); connector connected in the workspace",
+  },
+  {
     id: "company-from-domain",
     job: "Enrich company from domain",
     match: (k) => any(k, "company", "firmographic", "organization", "org-") && any(k, "enrich", "lookup", "find", "data") && !any(k, "email", "person", "people", "employee-search", "apollo"),
@@ -187,7 +205,7 @@ export const ACTION_MAPPINGS: ActionMapping[] = [
     id: "find-email-full-name",
     job: "Find work email from full name + domain",
     match: (k) => any(k, "email") && any(k, "find", "finder", "lookup", "search", "enrich") && !any(k, "verif", "valid", "send"),
-    connector: { varName: "findyMail", slug: "findymail", integration: "findyMail" },
+    connector: { varName: "findyMail", slug: "findy_mail", integration: "findyMail" },
     action: "findEmail",
     params: [
       { cargoField: "name", clayAliases: FULL, required: true },

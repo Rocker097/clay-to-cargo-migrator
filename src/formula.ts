@@ -28,7 +28,11 @@ export type Node =
   | { k: "call"; fn: string; args: Node[] }
   | { k: "unary"; op: "!" | "-"; arg: Node }
   | { k: "bin"; op: string; l: Node; r: Node }
-  | { k: "cond"; test: Node; a: Node; b: Node };
+  | { k: "cond"; test: Node; a: Node; b: Node }
+  /** Arrow function, only as the argument of an array method. */
+  | { k: "lambda"; params: string[]; body: Node }
+  /** A lambda parameter, with any property path read off it. */
+  | { k: "var"; name: string; path: string[]; optionalPath?: boolean[] };
 
 type Tok =
   | { t: "regex"; v: string; flags: string }
@@ -38,7 +42,7 @@ type Tok =
   | { t: "id"; v: string }
   | { t: "op"; v: string };
 
-const OPS = ["===", "!==", "?.", "??", "&&", "||", "==", "!=", ">=", "<=", ">", "<", "!", "+", "-", "*", "/", "(", ")", "[", "]", ",", ".", "?", ":"];
+const OPS = ["===", "!==", "=>", "?.", "??", "&&", "||", "==", "!=", ">=", "<=", ">", "<", "!", "+", "-", "*", "/", "(", ")", "[", "]", ",", ".", "?", ":"];
 
 function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
@@ -118,6 +122,15 @@ const PREC: Record<string, number> = {
 
 const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+const METHOD_ARGS: Record<string, number[]> = {
+  toUpperCase:[0],toLowerCase:[0],trim:[0],includes:[1],startsWith:[1],endsWith:[1],replace:[2],replaceAll:[2],slice:[1,2],substring:[1,2],split:[1],join:[0,1],
+  // Array methods taking an arrow function, plus indexOf.
+  map:[1],filter:[1],find:[1],some:[1],every:[1],indexOf:[1],
+  // Date math on moment() values (load-time only).
+  subtract:[2],add:[2],year:[0],month:[0],date:[0],format:[0,1],isAfter:[1],isBefore:[1],diff:[1,2],valueOf:[0],toISOString:[0],
+};
+export const LAMBDA_METHODS = new Set(["map", "filter", "find", "some", "every"]);
+
 export function parseFormula(src: string): Node {
   const toks = tokenize(src);
   let p = 0;
@@ -128,7 +141,39 @@ export function parseFormula(src: string): Node {
     p++;
   };
 
+  const scope: string[][] = [];
+  const inScope = (name: string) => scope.some(frame => frame.includes(name));
+
+  /** `x => body` or `(a, b) => body` starting at the current token, if any. */
+  function lambda(): Node | undefined {
+    const t = toks[p];
+    let params: string[] | undefined;
+    let next = p;
+    if (t?.t === "id" && toks[p + 1]?.v === "=>") { params = [t.v]; next = p + 2; }
+    else if (t?.t === "op" && t.v === "(") {
+      const names: string[] = [];
+      let j = p + 1;
+      for (;;) {
+        const id = toks[j];
+        if (id?.t !== "id") break;
+        names.push(id.v); j++;
+        if (toks[j]?.v === ",") { j++; continue; }
+        if (toks[j]?.v === ")" && toks[j + 1]?.v === "=>") { params = names; next = j + 2; }
+        break;
+      }
+    }
+    if (!params) return undefined;
+    for (const name of params) if (UNSAFE_KEYS.has(name) || ["row", "readPath", "domainOf", "clayMoment"].includes(name)) throw new FormulaError(`Parameter name "${name}" is not allowed`);
+    p = next;
+    scope.push(params);
+    const body = expr(0);
+    scope.pop();
+    return { k: "lambda", params, body };
+  }
+
   function primary(): Node {
+    const arrow = lambda();
+    if (arrow) return arrow;
     const tok = toks[p++];
     if (!tok) throw new FormulaError("Unexpected end of formula");
     let node: Node;
@@ -137,7 +182,15 @@ export function parseFormula(src: string): Node {
     else if (tok.t === "str") node = { k: "str", v: tok.v };
     else if (tok.t === "num") node = { k: "num", v: tok.v };
     else if (tok.t === "id") {
-      if (tok.v === "JSON") {
+      if (inScope(tok.v)) {
+        node = { k: "var", name: tok.v, path: [] };
+      } else if (tok.v === "moment" && isOp("(")) {
+        p++;
+        const args: Node[] = [];
+        if (!isOp(")")) args.push(expr(0));
+        expectOp(")");
+        node = { k: "call", fn: "MOMENT", args };
+      } else if (tok.v === "JSON") {
         expectOp(".");
         if (toks[p++]?.v !== "stringify") throw new FormulaError("Only JSON.stringify(value) is supported");
         expectOp("(");
@@ -184,7 +237,7 @@ export function parseFormula(src: string): Node {
         // path, so {{@X}}?.people?.[0]?.name reads like X.people.0.name and
         // Clay's string keys (?.["12"]) work the same way.
         if(index?.t==="str"&&UNSAFE_KEYS.has(index.v))throw new FormulaError(`Property "${index.v}" is not allowed`);
-        if(node.k==="ref"&&(index?.t==="str"||(index?.t==="num"&&Number.isSafeInteger(index.v)&&index.v>=0))){
+        if((node.k==="ref"||node.k==="var")&&(index?.t==="str"||(index?.t==="num"&&Number.isSafeInteger(index.v)&&index.v>=0))){
           expectOp("]");node={...node,path:[...node.path,String(index.v)],optionalPath:[...(node.optionalPath??[]),optional]};continue;
         }
         if(index?.t!=="num"||!Number.isSafeInteger(index.v)||index.v<0)throw new FormulaError("Index must be a nonnegative integer literal");
@@ -202,16 +255,14 @@ export function parseFormula(src: string): Node {
           while (isOp(",")) { p++; args.push(expr(0)); }
         }
         expectOp(")");
-        if (!["toUpperCase", "toLowerCase", "trim", "includes", "startsWith", "endsWith", "replace", "replaceAll", "slice", "substring", "split", "join"].includes(prop.v)) {
-          throw new FormulaError(`Method ${prop.v}() is not supported`);
-        }
-        const counts: Record<string, number[]> = {toUpperCase:[0],toLowerCase:[0],trim:[0],includes:[1],startsWith:[1],endsWith:[1],replace:[2],replaceAll:[2],slice:[1,2],substring:[1,2],split:[1],join:[0,1]};
-        if (!counts[prop.v].includes(args.length)) throw new FormulaError(`${prop.v}() expects ${counts[prop.v].join(" or ")} arguments`);
+        if (!Object.hasOwn(METHOD_ARGS, prop.v)) throw new FormulaError(`Method ${prop.v}() is not supported`);
+        if (!METHOD_ARGS[prop.v].includes(args.length)) throw new FormulaError(`${prop.v}() expects ${METHOD_ARGS[prop.v].join(" or ")} arguments`);
+        if (LAMBDA_METHODS.has(prop.v) !== (args[0]?.k === "lambda")) throw new FormulaError(`${prop.v}() ${LAMBDA_METHODS.has(prop.v) ? "needs" : "does not take"} an arrow function`);
         node = { k: "method", receiver: node, method: prop.v, optional, args };
         continue;
       }
       if (UNSAFE_KEYS.has(prop.v)) throw new FormulaError(`Property "${prop.v}" is not allowed`);
-      if (node.k !== "ref") throw new FormulaError("Property access is only supported on a column reference");
+      if (node.k !== "ref" && node.k !== "var") throw new FormulaError("Property access is only supported on a column reference");
       node = { ...node, path: [...node.path, prop.v], optionalPath: [...(node.optionalPath ?? []), optional] };
     }
     return node;
@@ -238,6 +289,20 @@ export function parseFormula(src: string): Node {
   }
 
   const node = expr(0);
+  const checkLambdas = (n: Node, asArg: boolean): void => {
+    if (n.k === "lambda" && !asArg) throw new FormulaError("Arrow functions are supported only as the argument of map/filter/find/some/every");
+    switch (n.k) {
+      case "lambda": return checkLambdas(n.body, false);
+      case "method": checkLambdas(n.receiver, false); n.args.forEach(a => checkLambdas(a, LAMBDA_METHODS.has(n.method))); return;
+      case "array": n.items.forEach(x => checkLambdas(x, false)); return;
+      case "index": return checkLambdas(n.receiver, false);
+      case "call": n.args.forEach(x => checkLambdas(x, false)); return;
+      case "unary": return checkLambdas(n.arg, false);
+      case "bin": checkLambdas(n.l, false); checkLambdas(n.r, false); return;
+      case "cond": checkLambdas(n.test, false); checkLambdas(n.a, false); checkLambdas(n.b, false); return;
+    }
+  };
+  checkLambdas(node, false);
   if (p !== toks.length) throw new FormulaError(`Unexpected "${(toks[p] as { v: unknown }).v}" after expression`);
   return node;
 }
@@ -247,6 +312,7 @@ export function refsOf(node: Node): { name: string; path: string[] }[] {
   switch (node.k) {
     case "array": return node.items.flatMap(refsOf);
     case "index": return refsOf(node.receiver);
+    case "lambda": return refsOf(node.body);
     case "ref":
       return [{ name: node.name, path: node.path }];
     case "method":
@@ -267,12 +333,52 @@ export function refsOf(node: Node): { name: string; path: string[] }[] {
 export type RefResolver = (name: string, path: string[]) => string;
 
 /** Expression for a Cargo workflow body: no `?.`, no `??`, no `||`. */
-export function emitBody(node: Node, resolve: RefResolver): string {
-  const e = (n: Node): string => emitBody(n, resolve);
+type Unrolled = { cond: string; val: string }[];
+
+/**
+ * Array methods in a workflow body. Cargo bodies are parsed, not run, so
+ * there are no arrow functions there. When the array is a literal list
+ * ([a, b, c]) its length is known, so filter/map/find/some/every unroll
+ * into plain conditions over each item.
+ */
+function unroll(node: Node, resolve: RefResolver, env: Record<string, string>): Unrolled {
+  const e = (n: Node, extra: Record<string, string> = {}) => emitBody(n, resolve, { ...env, ...extra });
+  if (node.k === "array") return node.items.map(item => ({ cond: "true", val: e(item) }));
+  if (node.k === "method" && (node.method === "filter" || node.method === "map")) {
+    const fn = node.args[0];
+    if (fn.k !== "lambda" || fn.params.length !== 1) throw new FormulaError(`${node.method}() in a Cargo workflow needs a one-parameter arrow function`);
+    return unroll(node.receiver, resolve, env).map(({ cond, val }) => {
+      const applied = e(fn.body, { [fn.params[0]]: val });
+      return node.method === "map" ? { cond, val: applied } : { cond: cond === "true" ? `!!(${applied})` : `(${cond} && ${applied})`, val };
+    });
+  }
+  throw new FormulaError("Array methods in a Cargo workflow need a literal list ([a, b, ...]); other arrays are supported only in input/loader formulas");
+}
+
+export function emitBody(node: Node, resolve: RefResolver, env: Record<string, string> = {}): string {
+  const e = (n: Node): string => emitBody(n, resolve, env);
   switch (node.k) {
+    case "lambda":
+      throw new FormulaError("Arrow functions are supported only inside array methods");
+    case "var": {
+      if (!Object.hasOwn(env, node.name)) throw new FormulaError(`Unknown parameter ${node.name}`);
+      return node.path.reduce((v, step) => /^\d+$/.test(step) ? `${v}[${step}]` : `${v}.${step}`, env[node.name]);
+    }
     case "array": case "index": case "regex":
       throw new FormulaError("Array/index/regex syntax is supported only in input/loader formulas");
     case "method":
+      if (["find", "some", "every"].includes(node.method)) {
+        const fn = node.args[0];
+        if (fn.k !== "lambda" || fn.params.length !== 1) throw new FormulaError(`${node.method}() in a Cargo workflow needs a one-parameter arrow function`);
+        const items = unroll(node.receiver, resolve, env);
+        const test = (cond: string, val: string) => {
+          const applied = emitBody(fn.body, resolve, { ...env, [fn.params[0]]: val });
+          return cond === "true" ? `(${applied})` : `(${cond} && ${applied})`;
+        };
+        if (node.method === "find") return items.reduceRight((acc, { cond, val }) => `(${test(cond, val)} ? ${val} : ${acc})`, "undefined");
+        if (node.method === "some") return items.reduceRight((acc, { cond, val }) => `(${test(cond, val)} ? true : ${acc})`, "false");
+        return items.reduceRight((acc, { cond, val }) => `(${cond === "true" ? "" : cond + " && "}!(${emitBody(fn.body, resolve, { ...env, [fn.params[0]]: val })}) ? false : ${acc})`, "true");
+      }
       // The same guarded calls LOWER/UPPER/TRIM already compile to.
       if (["toLowerCase", "toUpperCase", "trim"].includes(node.method) && !node.args.length) {
         const r = e(node.receiver);
@@ -309,7 +415,7 @@ export function emitBody(node: Node, resolve: RefResolver): string {
     case "call": {
       const a = node.args.map(e);
       switch (node.fn) {
-        case "DATE_VALUE": case "Date_now": case "Math_floor": case "Math_ceil": case "Math_round":
+        case "DATE_VALUE": case "Date_now": case "Math_floor": case "Math_ceil": case "Math_round": case "MOMENT":
           throw new FormulaError("Date/Math operations are supported only in input/loader formulas");
         case "CLAY_FORMAT":
           if (a.length !== 1) throw new FormulaError("Clay.formatForAIPrompt needs one argument");
@@ -350,6 +456,11 @@ export function emitBody(node: Node, resolve: RefResolver): string {
 export function emitLoader(node: Node, resolve: RefResolver): string {
   const e = (n: Node): string => emitLoader(n, resolve);
   switch (node.k) {
+    // Parameters are prefixed so a Clay name can never shadow loader names.
+    case "lambda": return `((${node.params.map(x => "p_" + x).join(", ")}) => ${e(node.body)})`;
+    case "var":
+      return node.path.reduce((value, property, index) =>
+        `${value}${node.optionalPath?.[index] ? "?." : ""}[${JSON.stringify(property)}]`, "p_" + node.name);
     case "array": return `[${node.items.map(e).join(", ")}]`;
     case "regex": return `/${node.pattern}/${node.flags}`;
     case "index": return `${node.receiver.k === "method" || node.receiver.k === "index" || node.receiver.k === "ref" ? e(node.receiver) : "("+e(node.receiver)+")"}${node.optional?"?.":""}[${node.index}]`;
@@ -380,6 +491,7 @@ export function emitLoader(node: Node, resolve: RefResolver): string {
       const a = node.args.map(e);
       switch (node.fn) {
         case "DATE_VALUE": return `new Date(${a[0]})`;
+        case "MOMENT": return `clayMoment(${a.length ? a[0] : ""})`;
         case "Date_now": return "Date.now()";
         case "Math_floor": case "Math_ceil": case "Math_round": return `Math.${node.fn.slice(5)}(${a[0]})`;
         case "DOMAIN":

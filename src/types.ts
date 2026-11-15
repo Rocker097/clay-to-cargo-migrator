@@ -1,6 +1,7 @@
 import { FormulaError, type Node } from './formula.ts';
-export type ValueType = 'string' | 'number' | 'boolean' | 'date' | 'null' | 'undefined' | 'array' | 'regex';
-export type StoredType = Exclude<ValueType, 'null' | 'undefined' | 'array' | 'regex'>;
+export type ValueType = 'string' | 'number' | 'boolean' | 'date' | 'null' | 'undefined' | 'array' | 'regex' | 'moment';
+export type StoredType = Exclude<ValueType, 'null' | 'undefined' | 'array' | 'regex' | 'moment'>;
+const MOMENT_RESULT = new Map<string, ValueType>([['subtract','moment'],['add','moment'],['year','number'],['month','number'],['date','number'],['diff','number'],['valueOf','number'],['format','string'],['toISOString','string'],['isAfter','boolean'],['isBefore','boolean']]);
 export type TypeResolver = (name: string, path: string[]) => ValueType;
 function merge(a: ValueType, b: ValueType): ValueType {
   if (a === b) return a;
@@ -24,7 +25,22 @@ export function inferType(n: Node, resolve: TypeResolver): ValueType {
       if(n.op==='!') return 'boolean';
       if(infer(n.arg)!=='number') throw new FormulaError('Unary minus needs a number');
       return 'number';
+    // Lambda parameters are list items; Clay lists here are lists of text.
+    case 'var': return 'string';
+    case 'lambda': return infer(n.body);
     case 'method': {
+      if(['map','filter','find','some','every'].includes(n.method)){
+        if(infer(n.receiver)!=='array')throw new FormulaError(`${n.method}() requires a list`);
+        const body=infer(n.args[0]);
+        if(n.method==='map'&&body!=='string')throw new FormulaError('map() must produce text items');
+        return n.method==='find'?'string':['some','every'].includes(n.method)?'boolean':'array';
+      }
+      if(n.method==='indexOf'){if(!['array','string'].includes(infer(n.receiver)))throw new FormulaError('indexOf() requires a list or text');infer(n.args[0]);return 'number';}
+      if(MOMENT_RESULT.has(n.method)){
+        if(infer(n.receiver)!=='moment')throw new FormulaError(`${n.method}() requires a moment() date`);
+        n.args.forEach(infer);
+        return MOMENT_RESULT.get(n.method)!;
+      }
       if(n.method==='join'){if(infer(n.receiver)!=='array')throw new FormulaError('join requires an array');n.args.forEach(x=>{if(infer(x)!=='string')throw new FormulaError('join requires a string separator');});return 'string';}
       if(infer(n.receiver)!=='string') throw new FormulaError(`${n.method}() requires a string receiver`);
       const numeric = ['slice','substring'].includes(n.method);
@@ -45,6 +61,8 @@ export function inferType(n: Node, resolve: TypeResolver): ValueType {
     case 'call': {
       const count=n.args.length;
       if(['DATE_VALUE','Date_now','Math_floor','Math_ceil','Math_round'].includes(n.fn)){if(count!==(n.fn==='Date_now'?0:1))throw new FormulaError('Invalid date/math arity');if(n.fn.startsWith('Math_')&&infer(n.args[0])!=='number')throw new FormulaError('Math requires a number');if(n.fn==='DATE_VALUE'&&!['string','number','date'].includes(infer(n.args[0])))throw new FormulaError('Date requires a scalar date input');return n.fn==='DATE_VALUE'?'date':'number';}
+      if(n.fn==='MOMENT'){if(count>1)throw new FormulaError('moment() takes at most one argument');n.args.forEach(infer);return 'moment';}
+      if(n.fn==='JSON_STRINGIFY'){if(count!==1)throw new FormulaError('JSON.stringify needs one argument');infer(n.args[0]);return 'string';}
       if(n.fn==='IF') {
         if(count!==3) throw new FormulaError('IF needs three arguments');
         return merge(infer(n.args[1]),infer(n.args[2]));

@@ -444,7 +444,7 @@ function emitLoader(plan: MigrationPlan, dir: string, stored: PlannedColumn[]): 
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
 // @ts-ignore TS5097: Node runs this .ts import directly; Cargo repos do not enable allowImportingTsExtensions. Types still resolve.
-import {prepareRows, importPrepared, domainOf, readPath, type Row, type InputSpec, type FormulaSpec, type ReuseSpec} from "./import-runtime.ts";
+import {prepareRows, importPrepared, domainOf, readPath, clayMoment, type Row, type InputSpec, type FormulaSpec, type ReuseSpec} from "./import-runtime.ts";
 const INPUTS:InputSpec[]=${JSON.stringify(inputs,null,2)};
 const REUSE:ReuseSpec[]=${JSON.stringify(reuse,null,2)};
 // Formula inputs are typed loosely: column values are only known at runtime,

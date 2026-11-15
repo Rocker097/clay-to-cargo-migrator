@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
 // @ts-ignore TS5097: Node runs this .ts import directly; Cargo repos do not enable allowImportingTsExtensions. Types still resolve.
-import {prepareRows, importPrepared, domainOf, readPath, type Row, type InputSpec, type FormulaSpec, type ReuseSpec} from "./import-runtime.ts";
+import {prepareRows, importPrepared, domainOf, readPath, clayMoment, type Row, type InputSpec, type FormulaSpec, type ReuseSpec} from "./import-runtime.ts";
 const INPUTS:InputSpec[]=[
   {
     "clay": "Company Website",

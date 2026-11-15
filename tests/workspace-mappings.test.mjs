@@ -10,7 +10,9 @@ import { parseClaySchema } from '../src/claymate.ts';
 import { planMigration } from '../src/plan.ts';
 import { emitProject } from '../src/emit.ts';
 
-const ws = JSON.parse(readFileSync(new URL('./fixtures/cargo-workspace-actions.json', import.meta.url), 'utf8')).actions;
+const fixture = JSON.parse(readFileSync(new URL('./fixtures/cargo-workspace-actions.json', import.meta.url), 'utf8'));
+const ws = fixture.actions;
+const connectors = fixture.connectors;
 
 function at(schema, path) {
   let s = schema;
@@ -27,6 +29,7 @@ for (const m of ACTION_MAPPINGS) {
   test(`mapping ${m.id} matches ${m.connector.integration}.${m.action} in the workspace`, () => {
     const action = ws[`${m.connector.integration}.${m.action}`];
     assert.ok(action, 'action exists in the workspace');
+    assert.equal(m.connector.slug, connectors[m.connector.integration], 'connector slug matches the connected workspace connector');
     const inputs = action.input.properties;
     for (const p of m.params) assert.ok(inputs[p.cargoField], `input ${p.cargoField} exists`);
     for (const k of Object.keys(m.constants ?? {})) assert.ok(inputs[k], `constant ${k} is an input`);

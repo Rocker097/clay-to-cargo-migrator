@@ -19,6 +19,42 @@ export function readPath(value:unknown,path:string[]):string|number|boolean|unde
  if(v===null||v===undefined)return undefined;
  return typeof v==='object'?JSON.stringify(v):v;
 }
+/**
+ * The moment() subset Clay formulas use, in UTC. Month and year shifts clamp
+ * to the month's last day like moment does (Mar 31 - 1 month = Feb 28/29).
+ */
+export interface ClayMoment {subtract(n:number,unit:string):ClayMoment;add(n:number,unit:string):ClayMoment;year():number;month():number;date():number;valueOf():number;toISOString():string|undefined;format(f?:string):string;isAfter(o:unknown):boolean;isBefore(o:unknown):boolean;diff(o:unknown,unit?:string):number}
+export function clayMoment(value?:unknown):ClayMoment {
+ const t=value===undefined?Date.now():value instanceof Date?value.getTime():typeof value==='number'?value:(value&&typeof (value as any).valueOf==='function'&&typeof (value as any).year==='function')?(value as any).valueOf():Date.parse(String(value??''));
+ return wrapMoment(t);
+}
+function wrapMoment(t:number):ClayMoment {
+ const valid=Number.isFinite(t),d=new Date(t),pad=(n:number,w=2)=>String(n).padStart(w,'0');
+ const ms=(o:unknown)=>clayMoment(o).valueOf();
+ const shift=(n:number,unit:string,sign:number):ClayMoment=>{
+  if(!valid)return wrapMoment(NaN);
+  const u=String(unit).replace(/s$/,''),k=Number(n)*sign,x=new Date(t);
+  if(u==='year'||u==='y'||u==='month'||u==='M'){
+   const months=(u==='year'||u==='y'?12:1)*k,y=x.getUTCFullYear(),m=x.getUTCMonth()+months;
+   const ty=y+Math.floor(m/12),tm=((m%12)+12)%12,last=new Date(Date.UTC(ty,tm+1,0)).getUTCDate();
+   x.setUTCFullYear(ty,tm,Math.min(x.getUTCDate(),last));return wrapMoment(x.getTime());
+  }
+  const step:Record<string,number>={week:6048e5,w:6048e5,day:864e5,d:864e5,hour:36e5,h:36e5,minute:6e4,m:6e4,second:1e3,s:1e3};
+  if(!step[u])throw new Error(`Unsupported moment unit ${unit}`);
+  return wrapMoment(t+k*step[u]);
+ };
+ return {
+  subtract:(n,u)=>shift(n,u,-1),add:(n,u)=>shift(n,u,1),
+  year:()=>valid?d.getUTCFullYear():NaN,month:()=>valid?d.getUTCMonth():NaN,date:()=>valid?d.getUTCDate():NaN,
+  valueOf:()=>t,toISOString:()=>valid?d.toISOString():undefined,
+  format:(f='YYYY-MM-DDTHH:mm:ss[Z]')=>!valid?'Invalid date':f.replace(/\[([^\]]*)\]|YYYY|MM|DD|HH|mm|ss/g,(tok,lit)=>lit!==undefined?lit:({YYYY:pad(d.getUTCFullYear(),4),MM:pad(d.getUTCMonth()+1),DD:pad(d.getUTCDate()),HH:pad(d.getUTCHours()),mm:pad(d.getUTCMinutes()),ss:pad(d.getUTCSeconds())} as Record<string,string>)[tok]),
+  isAfter:o=>valid&&t>ms(o),isBefore:o=>valid&&t<ms(o),
+  diff:(o,unit='ms')=>{const other=ms(o),u=String(unit).replace(/s$/,'');
+   if(u==='year'||u==='month'){const a=new Date(t),b=new Date(other);let m=(a.getUTCFullYear()-b.getUTCFullYear())*12+a.getUTCMonth()-b.getUTCMonth();if(m>0&&a.getUTCDate()<b.getUTCDate())m--;if(m<0&&a.getUTCDate()>b.getUTCDate())m++;return u==='year'?Math.trunc(m/12):m;}
+   const step:Record<string,number>={ms:1,millisecond:1,second:1e3,minute:6e4,hour:36e5,day:864e5,week:6048e5};
+   if(!step[u])throw new Error(`Unsupported moment unit ${unit}`);return Math.trunc((t-other)/step[u]);},
+ };
+}
 export function domainOf(value:unknown):string {return String(value??'').trim().toLowerCase().replace(/^[a-z]+:\/\//,'').split(/[/?#]/)[0].replace(/^www\./,'');}
 export function parseCsv(text:string) {
  const records:string[][]=[];let field='',record:string[]=[],quoted=false;

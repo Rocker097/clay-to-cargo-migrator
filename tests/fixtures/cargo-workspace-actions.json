@@ -1758,6 +1758,158 @@
      }
     }
    }
+  },
+  "pipecorn.enrichAccount": {
+   "input": {
+    "properties": {
+     "linkedinUrl": {
+      "type": "string"
+     },
+     "domain": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "country": {
+      "type": "string"
+     }
+    },
+    "required": []
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "company_name": {
+      "type": "string"
+     },
+     "description": {
+      "type": "string"
+     },
+     "industry": {
+      "type": "string"
+     },
+     "company_type": {
+      "type": "string"
+     },
+     "location": {
+      "type": "string"
+     },
+     "headquarters": {
+      "type": "object",
+      "properties": {
+       "country": {
+        "type": "string"
+       },
+       "city": {
+        "type": "string"
+       }
+      }
+     },
+     "employee_count": {
+      "type": "number"
+     },
+     "employee_range": {
+      "type": "string"
+     },
+     "revenue_range": {
+      "type": "object",
+      "propertyNames": {
+       "type": "string"
+      },
+      "additionalProperties": {}
+     },
+     "headcount_growth": {
+      "type": "object",
+      "propertyNames": {
+       "type": "string"
+      },
+      "additionalProperties": {}
+     },
+     "funding_and_investment": {
+      "type": "object",
+      "propertyNames": {
+       "type": "string"
+      },
+      "additionalProperties": {}
+     },
+     "website": {
+      "type": "string"
+     },
+     "domain": {
+      "type": "string"
+     },
+     "linkedin_url": {
+      "type": "string"
+     },
+     "linkedin_id": {
+      "type": "string"
+     },
+     "entity_urn": {
+      "type": "string"
+     },
+     "last_updated": {
+      "type": "string"
+     }
+    }
+   }
   }
- }
+ },
+ "connectors": {
+  "pipecorn": "pipecorn",
+  "typesafe": "typesafe",
+  "builtwith": "builtwith",
+  "aiArk": "ai_ark",
+  "cargoSignals": "rodz",
+  "sillage": "sillage",
+  "brightData": "bright_data",
+  "parallel": "parallel",
+  "companyEnrich": "company_enrich",
+  "gemini": "gemini",
+  "theSwarm": "the_swarm",
+  "snitcher": "snitcher",
+  "cleon1": "cleon1",
+  "findyMail": "findy_mail",
+  "theirStack": "their_stack",
+  "bounceban": "bounceban",
+  "bouncer": "bouncer",
+  "x": "x",
+  "forager": "forager",
+  "leadMagic": "lead_magic",
+  "enrichCrm": "enrich_crm",
+  "rocketreach": "rocketreach",
+  "mixrank": "mixrank",
+  "kitt": "kitt",
+  "perplexity": "perplexity",
+  "linkup": "linkup",
+  "anthropic": "anthropic",
+  "exa": "exa",
+  "piloterr": "piloterr",
+  "contactOut": "contact_out",
+  "enrichley": "enrichley",
+  "g2": "g2",
+  "icypeas": "icypeas",
+  "enrowio": "enrowio",
+  "FullEnrich": "full_enrich",
+  "salesNavigator": "sales_navigator",
+  "prospeo": "prospeo",
+  "firecrawl": "firecrawl",
+  "linkedin": "linkedin",
+  "proxycurl": "proxycurl",
+  "oceanio": "oceanio",
+  "serper": "serper",
+  "openRouter": "open_router",
+  "openAi": "open_ai",
+  "dropcontact": "dropcontact",
+  "hunter": "hunter",
+  "storeleads": "storeleads",
+  "datagma": "datagma",
+  "zeroBounce": "zero_bounce",
+  "neverBounce": "never_bounce",
+  "peopleDataLabs": "people_data_labs",
+  "apolloio": "apolloio",
+  "waterfall": "waterfall"
+ },
+ "connectorsSource": "cargo-ai connection connector list, 2026-11-15 (integration -> connector slug only)"
 }

@@ -490,7 +490,7 @@ function planFormula(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
     }
     return dep.cargoType;
   });
-  if (inferred === "array" || inferred === "regex") throw new Blocked("Array/regex results must be converted to a scalar before storage");
+  if (inferred === "array" || inferred === "regex" || inferred === "moment") throw new Blocked("List, regex and moment() results must be converted to text or a number before storage");
   if (inferred === "null" || inferred === "undefined") throw new Blocked("Formula has no concrete result type");
   if (inferred !== col.cargoType) col.notes.push(`Corrected exported type ${col.cargoType} to inferred ${inferred}.`);
   col.cargoType = inferred;

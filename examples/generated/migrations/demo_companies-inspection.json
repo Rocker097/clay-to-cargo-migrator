@@ -285,6 +285,10 @@
   },
   "availableAdapters": [
     {
+      "id": "domain-from-company-name",
+      "job": "Find a company's domain from its name"
+    },
+    {
       "id": "company-from-domain",
       "job": "Enrich company from domain"
     },

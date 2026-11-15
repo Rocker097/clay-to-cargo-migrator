@@ -1,4 +1,4 @@
-import {readPath} from './import-runtime.ts';
+import {readPath,clayMoment} from './import-runtime.ts';
 import vm from 'node:vm';
 import {parseClaySchema} from './claymate.ts';
 import {planMigration, type MappingOverrides} from './plan.ts';
@@ -25,7 +25,7 @@ export function evaluateCases(cases:EvaluationCase[]) {
     const row:Record<string,unknown>={};
     for(const col of p.columns)if(col.kind==='input')row[col.slug]=fixture.input[col.clay.name];
     for(const col of p.columns)if(col.generated&&col.loaderExpr) {
-     try {row[col.slug]=vm.runInNewContext(col.loaderExpr,{row,readPath,domainOf:(value:unknown)=>String(value??'').trim().toLowerCase().replace(/^[a-z]+:\/\//,'').split(/[/?#]/)[0].replace(/^www\./,'')},{timeout:100});}
+     try {row[col.slug]=vm.runInNewContext(col.loaderExpr,{row,readPath,clayMoment,domainOf:(value:unknown)=>String(value??'').trim().toLowerCase().replace(/^[a-z]+:\/\//,'').split(/[/?#]/)[0].replace(/^www\./,'')},{timeout:100});}
      catch(e){errors.push(`${col.clay.name}: ${String(e)}`);}
     }
     for(const [name,expected] of Object.entries(fixture.expected)) {
