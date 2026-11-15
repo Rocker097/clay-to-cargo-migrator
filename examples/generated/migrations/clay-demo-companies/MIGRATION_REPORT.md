@@ -36,7 +36,7 @@ Clay used providers Cargo does not run for these jobs. Each was swapped for the 
 |---|---|---|
 | Enrich company | `linkedin.enrichCompanyFromDomain` | 0.5 |
 
-Provider actions only: **0.5 credits per row** if every mapped enrichment runs. This excludes workflow execution and LLM costs. Provider subtotal for a 20-row pilot: **10 credits**.
+Provider actions only: **0.5 credits per row** if every mapped enrichment runs. This excludes workflow execution and LLM costs. Provider subtotal for a 3-row pilot: **1.5 credits**; provider subtotal for the full 3-row CSV: **1.5 credits**.
 
 AI usage depends on the authenticated LLM connector and its billing configuration. Cargo may meter Anthropic usage; verify the destination connector and do not assume AI is outside Cargo credits. Workflow nodes also incur execution charges (the installed Cargo guidance states 0.01 credits per node execution). These are additional to the provider-action subtotal.
 
@@ -47,6 +47,7 @@ Prices from Cargo's credits table (cargo-gtm/references/credits-cost-table.md). 
 - [ ] Run `cargo-ai project types` after `cargo-ai login`, then `npm run typecheck` in a scaffolded project. Connector actions are only typed against your workspace once types exist.
 - [ ] Connect each integration in `connectors.ts` once in the Cargo app (they bind to the workspace default).
 - [ ] Load 2 rows first and confirm in the app that values land in the model's columns.
+- [ ] Dropped Clay AI setting model: "gpt-4o". Configure and verify the Cargo agent explicitly.
 - [ ] Agent for "Employee Fit Status" uses a placeholder `languageModel`. Set it to a model on the workspace's Anthropic connector (run `npm run types` to get the typed list).
 - [ ] AI provider/model and output field shape are adapted, not preserved: configure them before asserting parity. Clay formatting support is limited to primitive values.
 

@@ -53,6 +53,8 @@ function tokenize(src: string): Tok[] {
       const end = src.indexOf("}}", i);
       if (end < 0) throw new FormulaError("Unclosed {{ reference");
       const inner = src.slice(i + 2, end).trim();
+      if (inner === "f_created_at") throw new FormulaError("{{f_created_at}} reads Clay's row creation time, a system field that is not part of the schema or the CSV");
+      if (/^f_[A-Za-z0-9_]+$/.test(inner)) throw new FormulaError(`Clay field-ID reference {{${inner}}} cannot be resolved: the schema export does not say which column owns that ID`);
       if (!inner.startsWith("@")) throw new FormulaError(`Unsupported reference {{${inner}}}`);
       const name = inner.slice(1);
       if (name.startsWith("source:")) throw new FormulaError(`Source references are not supported: {{${inner}}}`);
@@ -114,6 +116,8 @@ const PREC: Record<string, number> = {
   ">": 4, "<": 4, ">=": 4, "<=": 4, "+": 5, "-": 5, "*": 6, "/": 6,
 };
 
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 export function parseFormula(src: string): Node {
   const toks = tokenize(src);
   let p = 0;
@@ -133,7 +137,14 @@ export function parseFormula(src: string): Node {
     else if (tok.t === "str") node = { k: "str", v: tok.v };
     else if (tok.t === "num") node = { k: "num", v: tok.v };
     else if (tok.t === "id") {
-      if (tok.v === "new" || tok.v === "Math" || tok.v === "Date") {
+      if (tok.v === "JSON") {
+        expectOp(".");
+        if (toks[p++]?.v !== "stringify") throw new FormulaError("Only JSON.stringify(value) is supported");
+        expectOp("(");
+        const arg = expr(0);
+        expectOp(")");
+        node = { k: "call", fn: "JSON_STRINGIFY", args: [arg] };
+      } else if (tok.v === "new" || tok.v === "Math" || tok.v === "Date") {
         let fn: string;
         if(tok.v === "new") {if(toks[p++]?.v !== "Date") throw new FormulaError("Only new Date(value) is supported");fn="DATE_VALUE";}
         else {expectOp("."); const member=toks[p++]?.v;fn=tok.v+"_"+member;if(!["Math_floor","Math_ceil","Math_round","Date_now"].includes(fn))throw new FormulaError("Unsupported standard function");}
@@ -168,7 +179,15 @@ export function parseFormula(src: string): Node {
     while (isOp(".") || isOp("?.") || isOp("[")) {
       if(isOp("[") || (isOp("?.") && toks[p+1]?.v === "[")) {
         const optional=isOp("?.");if(optional)p++;p++;
-        const index=toks[p++];if(index?.t!=="num"||!Number.isSafeInteger(index.v)||index.v<0)throw new FormulaError("Index must be a nonnegative integer literal");
+        const index=toks[p++];
+        // On a column reference an index is one more step on the property
+        // path, so {{@X}}?.people?.[0]?.name reads like X.people.0.name and
+        // Clay's string keys (?.["12"]) work the same way.
+        if(index?.t==="str"&&UNSAFE_KEYS.has(index.v))throw new FormulaError(`Property "${index.v}" is not allowed`);
+        if(node.k==="ref"&&(index?.t==="str"||(index?.t==="num"&&Number.isSafeInteger(index.v)&&index.v>=0))){
+          expectOp("]");node={...node,path:[...node.path,String(index.v)],optionalPath:[...(node.optionalPath??[]),optional]};continue;
+        }
+        if(index?.t!=="num"||!Number.isSafeInteger(index.v)||index.v<0)throw new FormulaError("Index must be a nonnegative integer literal");
         expectOp("]");node={k:"index",receiver:node,index:index.v,optional};continue;
       }
       const optional = isOp("?.");
@@ -191,6 +210,7 @@ export function parseFormula(src: string): Node {
         node = { k: "method", receiver: node, method: prop.v, optional, args };
         continue;
       }
+      if (UNSAFE_KEYS.has(prop.v)) throw new FormulaError(`Property "${prop.v}" is not allowed`);
       if (node.k !== "ref") throw new FormulaError("Property access is only supported on a column reference");
       node = { ...node, path: [...node.path, prop.v], optionalPath: [...(node.optionalPath ?? []), optional] };
     }
@@ -284,6 +304,12 @@ export function emitBody(node: Node, resolve: RefResolver): string {
         case "CLAY_FORMAT":
           if (a.length !== 1) throw new FormulaError("Clay.formatForAIPrompt needs one argument");
           return `(${a[0]} == null ? "" : ${a[0]})`;
+        case "JSON_STRINGIFY":
+          // Used in Clay prompts to quote a value. Callers only allow scalar
+          // values here, so quoting the text matches JSON.stringify output
+          // apart from escaping inside the text.
+          if (a.length !== 1) throw new FormulaError("JSON.stringify needs one argument");
+          return `(${a[0]} == null ? "null" : "\\"" + ${a[0]} + "\\"")`;
         case "COALESCE":
           if (!a.length) throw new FormulaError("COALESCE needs arguments");
           return a.slice(0, -1).reduceRight((acc, x) => `(${x} == null ? ${acc} : ${x})`, a[a.length - 1]);
@@ -348,6 +374,8 @@ export function emitLoader(node: Node, resolve: RefResolver): string {
         case "Math_floor": case "Math_ceil": case "Math_round": return `Math.${node.fn.slice(5)}(${a[0]})`;
         case "DOMAIN":
           return `domainOf(${a[0]})`;
+        case "JSON_STRINGIFY":
+          return `JSON.stringify(${a[0]})`;
         case "COALESCE":
           if (!a.length) throw new FormulaError("COALESCE needs arguments");
           return `(${a.join(" ?? ")})`;

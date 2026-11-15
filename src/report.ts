@@ -28,6 +28,8 @@ function target(c: PlannedColumn): string {
       return `tool \`${c.slug}\` -> \`${c.mapping!.connector.integration}.${c.mapping!.action}\``;
     case "ai":
       return `agent + tool \`${c.slug}\``;
+    case "source":
+      return "CSV rows (load-rows script)";
     default:
       return "not generated";
   }

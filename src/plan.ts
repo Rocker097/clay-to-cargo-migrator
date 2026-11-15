@@ -86,6 +86,8 @@ export interface PlannedColumn {
   /** Scalar output fields declared by the Clay AI column's output schema. */
   aiOutputs?: AiOutputs;
   promptTemplate?: string;
+  /** Clay's own system prompt, when it is plain text. */
+  aiSystemPrompt?: string;
 }
 
 export interface MigrationPlan {
@@ -102,16 +104,83 @@ export interface MappingOverrides {
   actions?: Record<string, string | { adapter: string; inputAliases?: Record<string,string>; outputAliases?: Record<string,string> }>;
 }
 
+const SOURCE_STEP = /(?:\??\.[A-Za-z_][A-Za-z0-9_]*|(?:\?\.)?\[\s*(?:\d+|"[^"\\]*"|'[^'\\]*')\s*\])/y;
+
+/**
+ * CSV-only migration: a Clay source (imported list, Apify actor, RSS feed,
+ * Mixrank search...) is replaced by the CSV. Each field the table reads off
+ * the source, e.g. {{@Imported Companies}}.domain, becomes its own CSV input
+ * column named "Imported Companies.domain". The formulas are rewritten to
+ * read that column. A bare {{@Source}} (the whole object) is left alone and
+ * stays blocked.
+ */
+export function expandSources(columns: ClayColumn[]): { columns: ClayColumn[]; virtual: Map<string, string> } {
+  const sources = columns.filter(c => c.type === "source").map(c => c.name);
+  const virtual = new Map<string, string>();
+  if (!sources.length) return { columns, virtual };
+  const taken = new Set(columns.map(c => c.name));
+  const rewrite = (text: string | undefined): string | undefined => {
+    if (!text) return text;
+    let out = "";
+    let i = 0;
+    while (i < text.length) {
+      const start = text.indexOf("{{@", i);
+      if (start < 0) { out += text.slice(i); break; }
+      const end = text.indexOf("}}", start);
+      if (end < 0) { out += text.slice(i); break; }
+      const ref = text.slice(start + 3, end).trim();
+      out += text.slice(i, start);
+      i = end + 2;
+      if (!sources.includes(ref)) { out += text.slice(start, i); continue; }
+      const path: string[] = [];
+      let j = i;
+      for (;;) {
+        SOURCE_STEP.lastIndex = j;
+        const m = SOURCE_STEP.exec(text);
+        if (!m) break;
+        // A trailing method call (.toLowerCase()) is not a field.
+        if (/^\s*\(/.test(text.slice(SOURCE_STEP.lastIndex))) break;
+        const step = m[0].replace(/^\?\.?|^\.|\]$/g, "").replace(/^\[\s*|\s*$/g, "");
+        path.push(/^["']/.test(step) ? step.slice(1, -1) : step);
+        j = SOURCE_STEP.lastIndex;
+      }
+      const field = `${ref}.${path.join(".")}`;
+      if (!path.length || (taken.has(field) && !virtual.has(field))) { out += text.slice(start, i); continue; }
+      virtual.set(field, ref);
+      out += `{{@${field}}}`;
+      i = j;
+    }
+    return out;
+  };
+  const rewritten = columns.map((c) => {
+    const ts = c.typeSettings;
+    if (!ts) return c;
+    return { ...c, typeSettings: { ...ts,
+      formulaText: rewrite(ts.formulaText),
+      conditionalRunFormulaText: rewrite(ts.conditionalRunFormulaText),
+      inputsBinding: ts.inputsBinding?.map(b => ({ ...b, formulaText: rewrite(b.formulaText) })),
+    } };
+  });
+  let index = Math.max(-1, ...columns.map(c => c.index)) + 1;
+  for (const field of virtual.keys()) rewritten.push({ index: index++, name: field, type: "text", typeSettings: { dataTypeSettings: { type: "text" } } });
+  return { columns: rewritten, virtual };
+}
+
 export function planMigration(schema: ClaySchema, name: string, overrides: MappingOverrides = {}): MigrationPlan {
   const slugs = new SlugRegistry(["clay_row_id", "migrated_at", "migration_status"]);
   const byName = new Map<string, PlannedColumn>();
   const columns: PlannedColumn[] = [];
+  const expanded = expandSources(schema.columns);
+  const sourceFields = new Map<string, string[]>();
+  for (const [field, source] of expanded.virtual) sourceFields.set(source, [...(sourceFields.get(source) ?? []), field.slice(source.length + 1)]);
 
-  for (const clay of dependencyOrder(schema.columns)) {
+  for (const clay of dependencyOrder(expanded.columns)) {
     const ts = clay.typeSettings ?? {};
+    const virtualFrom = expanded.virtual.get(clay.name);
     const col: PlannedColumn = {
       clay,
-      slug: slugs.take(clay.name, 30),
+      // Source fields get short, readable slugs: src_company_name.
+      slug: slugs.take(virtualFrom ? `src ${clay.name.slice(virtualFrom.length + 1)}` : clay.name, 30),
       kind: "unmapped",
       generated: false,
       notes: [],
@@ -126,6 +195,17 @@ export function planMigration(schema: ClaySchema, name: string, overrides: Mappi
       if (clay.type === "source") {
         col.kind = "source";
         col.notes.push("Rows come in through the generated load-rows script (or a Cargo extractor) instead of a Clay source.");
+        const fields = sourceFields.get(clay.name);
+        if (fields) {
+          col.generated = true;
+          col.verify.push(`Clay source replaced by the CSV. Fields read from it load as CSV columns: ${fields.map(f => `"${clay.name}.${f}"`).join(", ")}. Make sure the CSV has them (rename the exported headers if needed).`);
+        }
+      } else if (expanded.virtual.has(clay.name)) {
+        col.kind = "input";
+        col.typeSource = "export";
+        col.generated = true;
+        col.notes.push(`Field read from Clay source "${expanded.virtual.get(clay.name)}", loaded from the CSV column "${clay.name}".`);
+        col.verify.push(`CSV must include a "${clay.name}" column (the source field, flattened). Its type is not in the export, so it loads as text.`);
       } else if (["text", "number", "boolean", "checkbox", "currency", "percent", "date", "datetime", "url", "email"].includes(clay.type)) {
         col.typeSource = "export";
         const declared = ts.dataTypeSettings?.type ?? clay.type;
@@ -237,7 +317,7 @@ export function parseAiOutputContract(value: unknown, label: string): AiOutputs 
         add(name, spec && typeof spec === "object" ? (spec as any).type : spec);
       }
     } else {
-      for (const [name, type] of Object.entries(o)) add(name, type);
+      for (const [name, spec] of Object.entries(o)) add(name, spec && typeof spec === "object" && !Array.isArray(spec) ? (spec as any).type : spec);
     }
   }
   if (!Object.keys(out).length) throw new Blocked(`AI output contract ${label} declares no fields.`);
@@ -254,6 +334,8 @@ function outputField(dep: PlannedColumn, path: string[], from: PlannedColumn): s
       if (!Object.hasOwn(dep.aiOutputs, clayField)) throw new Blocked(`AI output field "${clayField}" is not declared in "${dep.clay.name}"'s output schema.`);
       return clayField;
     }
+    // Clay's use-ai column without a declared schema answers in `response`.
+    if (clayField === "response") return "answer";
     if (clayField !== "answer") throw new Blocked(`AI output field "${clayField}" is not supported; only answer is available.`);
     return "answer";
   }
@@ -416,7 +498,7 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
   } else {
     // AI column: the prompt is text with {{@Column}} references in it.
     const configured = (value: unknown) => value !== undefined && value !== null && value !== "";
-    const outputSetting = /responseformat|jsonschema|outputschema|structuredoutput|outputfields/;
+    const outputSetting = /responseformat|jsonschema|outputschema|answerschema|structuredoutput|outputfields/;
     const normalizeSetting = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");
     // Output contracts: a flat schema of scalar fields is carried into the
     // agent's output schema. Format hints ("json") alone are ignored only when
@@ -433,9 +515,33 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
       if (outputSetting.test(normalizeSetting(key)) && configured(value)) { takeContract(key, value); continue; }
       if (/^(model|modelname|languagemodel|temperature|reasoninglevel|reasoningbudget)$/.test(normalizeSetting(key)) && configured(value)) col.verify.push(`Dropped Clay AI setting ${key}: ${JSON.stringify(value)}. Configure and verify the Cargo agent explicitly.`);
     }
+    const unquote = (v: unknown) => {
+      if (typeof v !== "string") return v;
+      const t = v.trim();
+      if (/^".*"$/s.test(t)) { try { return JSON.parse(t); } catch { return t; } }
+      return t;
+    };
     for (const binding of bindings) {
       const key = normalizeSetting(binding.name);
+      if (binding.formulaMap && typeof binding.formulaMap === "object" && Object.keys(binding.formulaMap).length) {
+        if (!outputSetting.test(key)) throw new Blocked(`AI setting "${binding.name}" is a structured value the migrator does not understand; needs manual review.`);
+        // Clay's answerSchemaType: {type:"json", fields:{...}} or
+        // {type:"json", jsonType:"JSONSchema", jsonSchema:"..."}, each value
+        // a formula string.
+        const map = binding.formulaMap as Record<string, unknown>;
+        const type = String(unquote(map.type) ?? "").toLowerCase();
+        if (map.fields !== undefined && map.fields !== "") takeContract(`${binding.name}.fields`, unquote(map.fields));
+        else if (map.jsonSchema !== undefined && map.jsonSchema !== "") takeContract(`${binding.name}.jsonSchema`, unquote(map.jsonSchema));
+        else if (type && type !== "text") formatOnly = `${binding.name} (${type})`;
+        continue;
+      }
       if (!configured(binding.formulaText)) continue;
+      if (key === "systemprompt") {
+        const ast = parseFormula(binding.formulaText!);
+        if (ast.k !== "str") throw new Blocked("AI system prompt reads column values; needs manual review.");
+        col.aiSystemPrompt = ast.v;
+        continue;
+      }
       if (outputSetting.test(key)) { takeContract(binding.name, binding.formulaText); continue; }
       if (/^(model|modelname|languagemodel|temperature|reasoninglevel|reasoningbudget)$/.test(key)) col.verify.push(`Dropped Clay AI setting ${binding.name}: ${binding.formulaText}. Configure and verify the Cargo agent explicitly.`);
     }
@@ -444,7 +550,7 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
       col.aiOutputs = contract;
       col.notes.push(`Structured AI output carried over: ${Object.entries(contract).map(([k, t]) => `${k} (${t})`).join(", ")}.`);
     }
-    const promptBinding = bindings.find((b) => /prompt|instruction|message/.test(normalizeBindingName(b.name)) && !outputSetting.test(normalizeSetting(b.name))) ?? bindings.find((b) => !outputSetting.test(normalizeSetting(b.name)));
+    const promptBinding = bindings.find((b) => normalizeSetting(b.name) === "prompt") ?? bindings.find((b) => normalizeSetting(b.name) !== "systemprompt" && /prompt|instruction|message/.test(normalizeBindingName(b.name)) && !outputSetting.test(normalizeSetting(b.name))) ?? bindings.find((b) => !outputSetting.test(normalizeSetting(b.name)));
     if (!promptBinding?.formulaText) throw new Blocked("AI column has no prompt to carry over.");
     col.agentVar = camel(`${col.slug}_agent`);
     const promptText = promptBinding.formulaText;

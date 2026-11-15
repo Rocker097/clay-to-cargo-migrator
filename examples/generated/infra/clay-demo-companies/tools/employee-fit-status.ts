@@ -14,7 +14,7 @@ const workflow = defineWorkflow(
     }),
     output: z.object({
       raw: z.string().optional(),
-      answer: z.string().optional(),
+      response: z.string().optional(),
     }),
     uses: { employeeFitStatusAgent },
   },
@@ -25,7 +25,7 @@ const workflow = defineWorkflow(
 
     return {
       raw: JSON.stringify(result.answer),
-      answer: result.answer.answer,
+      response: result.answer.response,
     };
   },
 );

@@ -169,7 +169,9 @@ export const ${c.agentVar} = defineAgent("clay_${plan.name}_${c.slug}", {
   systemPrompt: [
     "You answer one question about one row of a go-to-market table.",
     "Use only the facts given in the prompt. If they are not enough to answer, say so in the answer rather than guessing.",
-    "Return the answer only, in the exact JSON shape requested. You do not write to any model.",
+    "Return the answer only, in the exact JSON shape requested. You do not write to any model.",${c.aiSystemPrompt ? `
+    // Clay system prompt, carried over as written:
+    ${JSON.stringify(c.aiSystemPrompt)},` : ""}
   ].join(" "),
   output: {
     type: "jsonSchema",

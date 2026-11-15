@@ -19,9 +19,9 @@ export const employeeFitStatusAgent = defineAgent("clay_demo_companies_employee_
     jsonSchema: {
       type: "object",
       properties: {
-        answer: { type: "string", description: "The answer to the prompt." },
+        response: { type: "string" },
       },
-      required: ["answer"],
+      required: ["response"],
       additionalProperties: false,
     },
   },

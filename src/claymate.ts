@@ -7,6 +7,8 @@
 export interface ClayInputBinding {
   name: string;
   formulaText?: string;
+  /** Structured setting (e.g. answerSchemaType): field name -> formula text. */
+  formulaMap?: Record<string, unknown>;
 }
 
 export interface ClayColumn {
@@ -17,6 +19,8 @@ export interface ClayColumn {
     dataTypeSettings?: { type?: string };
     formulaText?: string;
     formulaType?: string;
+    /** Waterfall formulas: Clay keeps the first non-empty result. */
+    formulaWaterfall?: string[];
     actionKey?: string;
     actionPackageId?: string;
     actionVersion?: number;
@@ -49,6 +53,13 @@ export function parseClaySchema(json: string): ClaySchema {
     if(ts?.dataTypeSettings!==undefined&&(!ts.dataTypeSettings||typeof ts.dataTypeSettings!=="object"||(ts.dataTypeSettings.type!==undefined&&typeof ts.dataTypeSettings.type!=="string")))throw new Error(`Invalid data type settings on ${c.name}`);
     if (ts?.inputsBinding !== undefined && (!Array.isArray(ts.inputsBinding) || ts.inputsBinding.some(b=>!b||typeof b.name!=="string"||!b.name||(b.formulaText!==undefined&&typeof b.formulaText!=="string")))) throw new Error(`Invalid input bindings on ${c.name}`);
     for(const key of ["formulaText","conditionalRunFormulaText","actionKey"] as const) if(ts?.[key]!==undefined&&typeof ts[key]!=="string")throw new Error(`Invalid ${key} on ${c.name}`);
+    if (ts?.formulaWaterfall !== undefined) {
+      if (!Array.isArray(ts.formulaWaterfall) || ts.formulaWaterfall.some(x => typeof x !== "string" || !x.trim())) throw new Error(`Invalid formulaWaterfall on ${c.name}`);
+      // A waterfall keeps the first step that returns something. As a single
+      // formula that is step1 || step2 || ...; the ?? / || rules downstream
+      // already compile it safely for loaders and workflow bodies.
+      if (!ts.formulaText?.trim() && ts.formulaWaterfall.length) ts.formulaText = ts.formulaWaterfall.map(x => `(${x})`).join(" || ");
+    }
     if (typeof c.name !== "string" || !c.name.trim() || typeof c.type !== "string") {
       throw new Error(`Column at index ${c.index} is missing a name or type.`);
     }
