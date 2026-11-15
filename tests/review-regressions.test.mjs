@@ -21,7 +21,9 @@ test('loose and strict comparisons retain their original truth values',()=>{
 });
 const ai=(extra={},bindings=[])=>({index:1,name:'Fit',type:'action',typeSettings:{actionKey:'use-ai',inputsBinding:[{name:'prompt',formulaText:'Classify {{@ID}}'},...bindings],...extra}});
 test('unsupported structured AI output blocks its dependents at the source',()=>{
- for(const column of [ai({response_format:{type:'json_schema'}}),ai({},[{name:'json_schema',formulaText:'{"score":"number"}'}])]){
+ // A format with no field schema still blocks. (Clay's shorthand field schema
+ // is now supported; see tests/ai-structured-output.test.mjs.)
+ for(const column of [ai({response_format:{type:'json_schema'}}),ai({},[{name:'response_format',formulaText:'"json"'}])]){
   const plan=planMigration(schema([input,column,{index:2,name:'Score',type:'formula',typeSettings:{formulaText:'{{@Fit}}?.score'}}]),'review');
   assert.equal(plan.columns.find(c=>c.clay.name==='Fit').generated,false);
   assert.match(plan.columns.find(c=>c.clay.name==='Fit').notes.join(' '),/output contract/);

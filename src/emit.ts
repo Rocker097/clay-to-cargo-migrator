@@ -20,6 +20,16 @@ const comment = (text: string, indent = "") =>
     .map((l) => `${indent}// ${l}`.trimEnd())
     .join("\n");
 
+/** Output fields of an AI column: its declared schema, or a single answer. */
+function aiFieldNames(c: PlannedColumn): string[] {
+  return c.aiOutputs ? Object.keys(c.aiOutputs) : ["answer"];
+}
+
+function aiSchemaProps(c: PlannedColumn): string {
+  if (!c.aiOutputs) return `        answer: { type: "string", description: "The answer to the prompt." },`;
+  return Object.entries(c.aiOutputs).map(([f, t]) => `        ${f}: { type: "${t}" },`).join("\n");
+}
+
 export function emitProject(plan: MigrationPlan): GeneratedFile[] {
   const dir = `clay-${plan.name.replace(/_/g, "-")}`;
   const infra = `infra/${dir}`;
@@ -166,9 +176,9 @@ export const ${c.agentVar} = defineAgent("clay_${plan.name}_${c.slug}", {
     jsonSchema: {
       type: "object",
       properties: {
-        answer: { type: "string", description: "The answer to the prompt." },
+${aiSchemaProps(c)}
       },
-      required: ["answer"],
+      required: ${JSON.stringify(aiFieldNames(c))},
       additionalProperties: false,
     },
   },
@@ -238,7 +248,7 @@ function emitTool(plan: MigrationPlan, infra: string, c: PlannedColumn): Generat
 
     return {
       raw: JSON.stringify(result.answer),
-      answer: result.answer.answer,
+${aiFieldNames(c).map((f) => `      ${f}: result.answer.${f},`).join("\n")}
     };`;
   } else {
     const args = (c.actionArgs ?? []).map((a) => {
@@ -271,7 +281,7 @@ ${outputs.map(([f]) => {
 
   const outFields =
     c.kind === "ai"
-      ? ["      raw: z.string().optional(),", "      answer: z.string().optional(),"]
+      ? ["      raw: z.string().optional(),", ...aiFieldNames(c).map((f) => `      ${f}: ${zodFor(c.aiOutputs?.[f] ?? "string")},`)]
       : ["      raw: z.string().optional(),", ...outputs.map(([f, t]) => `      ${f}: ${zodFor(t)},`)];
 
   return {

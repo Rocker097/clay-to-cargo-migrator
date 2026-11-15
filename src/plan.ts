@@ -80,9 +80,11 @@ export interface PlannedColumn {
   toolCondition?: string;
   conditionSource?: string;
   /** Output fields read downstream, Cargo name -> type. */
-  usedFields: Map<string, "string" | "number">;
+  usedFields: Map<string, "string" | "number" | "boolean">;
   // ai
   agentVar?: string;
+  /** Scalar output fields declared by the Clay AI column's output schema. */
+  aiOutputs?: AiOutputs;
   promptTemplate?: string;
 }
 
@@ -183,12 +185,75 @@ function lookup(byName: Map<string, PlannedColumn>, name: string, forCol: Planne
   return dep;
 }
 
+export type AiOutputs = Record<string, "string" | "number" | "boolean">;
+
+const AI_SCALAR: Record<string, "string" | "number" | "boolean"> = {
+  string: "string", text: "string", str: "string",
+  number: "number", integer: "number", int: "number", float: "number", decimal: "number",
+  boolean: "boolean", bool: "boolean", checkbox: "boolean",
+};
+
+/**
+ * Reads a Clay AI output contract. Accepts a full JSON Schema object
+ * ({type:"object",properties:{score:{type:"number"}}}), Clay's shorthand
+ * ({score:"number"}), a list of {name,type}, or a JSON string of any of
+ * these. Only flat scalar fields are accepted; anything else is refused.
+ * Returns undefined when the value is a format hint ("json", "text").
+ */
+export function parseAiOutputContract(value: unknown, label: string): AiOutputs | undefined {
+  let v: unknown = value;
+  if (typeof v === "string") {
+    let text = v.trim();
+    if (/^"(?:json|json_object|text)"$/i.test(text) || /^(?:json|json_object|text)$/i.test(text)) return undefined;
+    if (/^".*"$/s.test(text)) {
+      try { text = JSON.parse(text); } catch { /* keep as is */ }
+    }
+    try { v = JSON.parse(String(text)); } catch { throw new Blocked(`AI output contract ${label} is not readable JSON.`); }
+  }
+  if (typeof v !== "object" || v === null) throw new Blocked(`AI output contract ${label} has an unsupported shape.`);
+  const out: AiOutputs = {};
+  const add = (name: unknown, type: unknown) => {
+    if (typeof name !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Blocked(`AI output field name ${JSON.stringify(name)} in ${label} is not a valid identifier.`);
+    if (name === "raw") throw new Blocked(`AI output field "raw" in ${label} collides with the migrator's raw result column.`);
+    const t = typeof type === "string" ? AI_SCALAR[type.toLowerCase()] : undefined;
+    if (!t) throw new Blocked(`AI output field "${name}" in ${label} has type ${JSON.stringify(type)}; only string, number and boolean fields are supported.`);
+    out[name] = t;
+  };
+  if (Array.isArray(v)) {
+    for (const f of v) {
+      if (!f || typeof f !== "object") throw new Blocked(`AI output contract ${label} has an unsupported field entry.`);
+      add((f as any).name ?? (f as any).key, (f as any).type);
+    }
+  } else {
+    const o = v as Record<string, unknown>;
+    if (o.json_schema && typeof o.json_schema === "object") return parseAiOutputContract((o.json_schema as any).schema ?? o.json_schema, label);
+    // OpenAI-style response_format objects ({type:"json_schema"}) name a
+    // format, not fields. Without a schema attached there is nothing to carry.
+    if (typeof o.type === "string" && /^(json_schema|json_object|json|text)$/i.test(o.type) && !o.properties && !o.schema) return undefined;
+    if (o.schema && typeof o.schema === "object" && !o.properties) return parseAiOutputContract(o.schema, label);
+    if (o.properties && typeof o.properties === "object") {
+      if (o.type !== undefined && o.type !== "object") throw new Blocked(`AI output contract ${label} must describe an object.`);
+      for (const [name, spec] of Object.entries(o.properties as Record<string, unknown>)) {
+        add(name, spec && typeof spec === "object" ? (spec as any).type : spec);
+      }
+    } else {
+      for (const [name, type] of Object.entries(o)) add(name, type);
+    }
+  }
+  if (!Object.keys(out).length) throw new Blocked(`AI output contract ${label} declares no fields.`);
+  return out;
+}
+
 /** Resolve a Clay field read off an action column to the Cargo field name. */
 function outputField(dep: PlannedColumn, path: string[], from: PlannedColumn): string {
-  if (path.length === 0) return dep.mapping?.primaryField ?? (dep.kind === "ai" ? "answer" : "raw");
+  if (path.length === 0) return dep.mapping?.primaryField ?? (dep.kind === "ai" ? (dep.aiOutputs ? "raw" : "answer") : "raw");
   const clayField = path.join(".");
   if (path.length > 1 && !Object.hasOwn(dep.mapping?.fieldSynonyms ?? {}, clayField)) throw new Blocked(`Nested output "${clayField}" needs an explicit verified adapter mapping.`);
   if (dep.kind === "ai") {
+    if (dep.aiOutputs) {
+      if (!Object.hasOwn(dep.aiOutputs, clayField)) throw new Blocked(`AI output field "${clayField}" is not declared in "${dep.clay.name}"'s output schema.`);
+      return clayField;
+    }
     if (clayField !== "answer") throw new Blocked(`AI output field "${clayField}" is not supported; only answer is available.`);
     return "answer";
   }
@@ -214,7 +279,7 @@ function playRef(byName: Map<string, PlannedColumn>, from: PlannedColumn, name: 
     case "action":
     case "ai": {
       const field = outputField(dep, path, from);
-      const type = dep.mapping?.knownOutputs[field] ?? "string";
+      const type = dep.kind === "ai" ? (dep.aiOutputs?.[field] ?? "string") : (dep.mapping?.knownOutputs[field] ?? "string");
       dep.usedFields.set(field, type);
       return `${dep.resultVar}.${field}`;
     }
@@ -252,7 +317,7 @@ function planFormula(col: PlannedColumn, byName: Map<string, PlannedColumn>) {
     const dep = lookup(byName, name, col);
     if (dep.kind === "action" || dep.kind === "ai") {
       const field = outputField(dep, path, col);
-      if (dep.kind === "ai") return "string";
+      if (dep.kind === "ai") return field === "raw" ? "string" : (dep.aiOutputs?.[field] ?? "string");
       const known = dep.mapping!.knownOutputs[field];
       if (!known) throw new Blocked(`Output type for ${name}.${field} is not verified`);
       return known;
@@ -353,17 +418,33 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
     const configured = (value: unknown) => value !== undefined && value !== null && value !== "";
     const outputSetting = /responseformat|jsonschema|outputschema|structuredoutput|outputfields/;
     const normalizeSetting = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    // Output contracts: a flat schema of scalar fields is carried into the
+    // agent's output schema. Format hints ("json") alone are ignored only when
+    // a schema is also present; anything unreadable is still refused.
+    let contract: AiOutputs | undefined;
+    let formatOnly: string | undefined;
+    const takeContract = (label: string, value: unknown) => {
+      const parsed = parseAiOutputContract(value, label);
+      if (!parsed) { formatOnly = label; return; }
+      if (contract) throw new Blocked(`AI column declares more than one output schema (${label}); needs manual review.`);
+      contract = parsed;
+    };
     for (const [key, value] of Object.entries(ts)) {
-      if (outputSetting.test(normalizeSetting(key)) && configured(value)) throw new Blocked(`Unsupported AI output contract ${key}; refusing to replace it with answer-only text.`);
+      if (outputSetting.test(normalizeSetting(key)) && configured(value)) { takeContract(key, value); continue; }
       if (/^(model|modelname|languagemodel|temperature|reasoninglevel|reasoningbudget)$/.test(normalizeSetting(key)) && configured(value)) col.verify.push(`Dropped Clay AI setting ${key}: ${JSON.stringify(value)}. Configure and verify the Cargo agent explicitly.`);
     }
     for (const binding of bindings) {
       const key = normalizeSetting(binding.name);
       if (!configured(binding.formulaText)) continue;
-      if (outputSetting.test(key)) throw new Blocked(`Unsupported AI output contract ${binding.name}; refusing to replace it with answer-only text.`);
+      if (outputSetting.test(key)) { takeContract(binding.name, binding.formulaText); continue; }
       if (/^(model|modelname|languagemodel|temperature|reasoninglevel|reasoningbudget)$/.test(key)) col.verify.push(`Dropped Clay AI setting ${binding.name}: ${binding.formulaText}. Configure and verify the Cargo agent explicitly.`);
     }
-    const promptBinding = bindings.find((b) => /prompt|instruction|message/.test(normalizeBindingName(b.name))) ?? bindings[0];
+    if (formatOnly && !contract) throw new Blocked(`Unsupported AI output contract ${formatOnly}: a format is set without a field schema; refusing to replace it with answer-only text.`);
+    if (contract) {
+      col.aiOutputs = contract;
+      col.notes.push(`Structured AI output carried over: ${Object.entries(contract).map(([k, t]) => `${k} (${t})`).join(", ")}.`);
+    }
+    const promptBinding = bindings.find((b) => /prompt|instruction|message/.test(normalizeBindingName(b.name)) && !outputSetting.test(normalizeSetting(b.name))) ?? bindings.find((b) => !outputSetting.test(normalizeSetting(b.name)));
     if (!promptBinding?.formulaText) throw new Blocked("AI column has no prompt to carry over.");
     col.agentVar = camel(`${col.slug}_agent`);
     const promptText = promptBinding.formulaText;
