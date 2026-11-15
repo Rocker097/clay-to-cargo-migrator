@@ -1,0 +1,1763 @@
+{
+ "source": "cargo-ai connection integration list, exported 2026-11-15 from the user's Cargo workspace; trimmed to actions the mapping table uses (inputs and output schemas only, no credentials).",
+ "actions": {
+  "FullEnrich.findEmail": {
+   "input": {
+    "properties": {
+     "firstName": {
+      "type": "string"
+     },
+     "lastName": {
+      "type": "string"
+     },
+     "domainName": {
+      "type": "string"
+     },
+     "companyName": {
+      "type": "string"
+     },
+     "linkedinUrl": {
+      "type": "string"
+     }
+    },
+    "required": []
+   },
+   "output": {
+    "type": "object",
+    "properties": {
+     "firstname": {
+      "type": "string"
+     },
+     "lastname": {
+      "type": "string"
+     },
+     "domain": {
+      "type": "string"
+     },
+     "profile": {
+      "type": "object",
+      "properties": {
+       "linkedin_id": {
+        "type": "number"
+       },
+       "linkedin_url": {
+        "type": "string"
+       },
+       "linkedin_handle": {
+        "type": "string"
+       },
+       "firstname": {
+        "type": "string"
+       },
+       "lastname": {
+        "type": "string"
+       },
+       "sales_navigator_id": {
+        "type": "string"
+       },
+       "premium_account": {
+        "type": "boolean"
+       },
+       "location": {
+        "type": "string"
+       },
+       "summary": {
+        "type": "string"
+       },
+       "headline": {
+        "type": "string"
+       },
+       "position": {
+        "type": "object",
+        "properties": {
+         "title": {
+          "type": "string"
+         },
+         "description": {
+          "type": "string"
+         },
+         "start_at": {
+          "type": "object",
+          "properties": {
+           "month": {
+            "type": "number"
+           },
+           "year": {
+            "type": "number"
+           }
+          }
+         },
+         "company": {
+          "type": "object",
+          "properties": {
+           "linkedin_id": {
+            "type": "number"
+           },
+           "linkedin_url": {
+            "type": "string"
+           },
+           "linkedin_handle": {
+            "type": "string"
+           },
+           "name": {
+            "type": "string"
+           },
+           "description": {
+            "type": "string"
+           },
+           "website": {
+            "type": "string"
+           },
+           "domain": {
+            "type": "string"
+           },
+           "industry": {
+            "type": "string"
+           },
+           "year_founded": {
+            "type": "number"
+           },
+           "headcount": {
+            "type": "number"
+           },
+           "headcount_range": {
+            "type": "string"
+           },
+           "headquarters": {
+            "type": "object",
+            "properties": {
+             "region": {
+              "type": "string"
+             },
+             "city": {
+              "type": "string"
+             },
+             "country": {
+              "type": "string"
+             },
+             "country_code": {
+              "type": "string"
+             },
+             "postal_code": {
+              "type": "string"
+             },
+             "address_line_1": {
+              "type": "string"
+             },
+             "address_line_2": {
+              "type": "string"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "most_probable_email": {
+      "type": "string"
+     },
+     "most_probable_email_status": {
+      "type": "string"
+     },
+     "most_probable_personal_email": {
+      "type": "string"
+     },
+     "most_probable_personal_email_status": {
+      "type": "string"
+     },
+     "most_probable_phone": {
+      "type": "string"
+     },
+     "emails": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "email": {
+         "type": "string"
+        },
+        "status": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "personal_emails": {
+      "type": "array",
+      "items": {}
+     },
+     "phones": {
+      "type": "array",
+      "items": {}
+     },
+     "social_medias": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "url": {
+         "type": "string"
+        },
+        "type": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "apolloio.enrichOrganization": {
+   "input": {
+    "properties": {
+     "domain": {
+      "type": "string"
+     },
+     "linkedin_url": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "website": {
+      "type": "string"
+     }
+    },
+    "required": []
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "organization": {
+      "type": "object",
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "name": {
+        "type": "string"
+       },
+       "website_url": {
+        "type": "string"
+       },
+       "angellist_url": {
+        "type": "string"
+       },
+       "linkedin_url": {
+        "type": "string"
+       },
+       "twitter_url": {
+        "type": "string"
+       },
+       "facebook_url": {
+        "type": "string"
+       },
+       "primary_phone": {
+        "type": "object",
+        "properties": {
+         "number": {
+          "type": "string"
+         },
+         "source": {
+          "type": "string"
+         },
+         "sanitized_number": {
+          "type": "string"
+         }
+        }
+       },
+       "languages": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "alexa_ranking": {
+        "type": "number"
+       },
+       "phone": {
+        "type": "string"
+       },
+       "linkedin_uid": {
+        "type": "string"
+       },
+       "founded_year": {
+        "type": "number"
+       },
+       "publicly_traded_symbol": {
+        "type": "string"
+       },
+       "publicly_traded_exchange": {
+        "type": "string"
+       },
+       "logo_url": {
+        "type": "string"
+       },
+       "crunchbase_url": {},
+       "primary_domain": {
+        "type": "string"
+       },
+       "sic_codes": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "naics_codes": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "sanitized_phone": {
+        "type": "string"
+       },
+       "industry": {
+        "type": "string"
+       },
+       "estimated_num_employees": {
+        "type": "number"
+       },
+       "keywords": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "organization_revenue_printed": {
+        "type": "string"
+       },
+       "organization_revenue": {
+        "type": "number"
+       },
+       "industries": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "secondary_industries": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "snippets_loaded": {
+        "type": "boolean"
+       },
+       "industry_tag_id": {
+        "type": "string"
+       },
+       "industry_tag_hash": {
+        "type": "object",
+        "properties": {
+         "logistics & supply chain": {
+          "type": "string"
+         },
+         "transportation/trucking/railroad": {
+          "type": "string"
+         },
+         "maritime": {
+          "type": "string"
+         },
+         "construction": {
+          "type": "string"
+         },
+         "information technology & services": {
+          "type": "string"
+         },
+         "computer software": {
+          "type": "string"
+         },
+         "civil engineering": {
+          "type": "string"
+         },
+         "hospitality": {
+          "type": "string"
+         },
+         "food & beverages": {
+          "type": "string"
+         },
+         "food production": {
+          "type": "string"
+         },
+         "warehousing": {
+          "type": "string"
+         },
+         "machinery": {
+          "type": "string"
+         },
+         "marketing & advertising": {
+          "type": "string"
+         },
+         "financial services": {
+          "type": "string"
+         },
+         "professional training & coaching": {
+          "type": "string"
+         },
+         "architecture & planning": {
+          "type": "string"
+         },
+         "management consulting": {
+          "type": "string"
+         },
+         "sports": {
+          "type": "string"
+         },
+         "events services": {
+          "type": "string"
+         },
+         "capital markets": {
+          "type": "string"
+         },
+         "public relations & communications": {
+          "type": "string"
+         },
+         "automotive": {
+          "type": "string"
+         },
+         "information services": {
+          "type": "string"
+         },
+         "insurance": {
+          "type": "string"
+         },
+         "semiconductors": {
+          "type": "string"
+         },
+         "electrical/electronic manufacturing": {
+          "type": "string"
+         },
+         "mechanical or industrial engineering": {
+          "type": "string"
+         },
+         "real estate": {
+          "type": "string"
+         },
+         "internet": {
+          "type": "string"
+         },
+         "military": {
+          "type": "string"
+         },
+         "aviation & aerospace": {
+          "type": "string"
+         },
+         "government administration": {
+          "type": "string"
+         },
+         "higher education": {
+          "type": "string"
+         },
+         "media production": {
+          "type": "string"
+         },
+         "health, wellness & fitness": {
+          "type": "string"
+         },
+         "oil & energy": {
+          "type": "string"
+         },
+         "law enforcement": {
+          "type": "string"
+         },
+         "outsourcing/offshoring": {
+          "type": "string"
+         },
+         "security & investigations": {
+          "type": "string"
+         },
+         "education management": {
+          "type": "string"
+         },
+         "primary/secondary education": {
+          "type": "string"
+         },
+         "research": {
+          "type": "string"
+         },
+         "biotechnology": {
+          "type": "string"
+         },
+         "computer & network security": {
+          "type": "string"
+         },
+         "medical practice": {
+          "type": "string"
+         },
+         "hospital & health care": {
+          "type": "string"
+         },
+         "banking": {
+          "type": "string"
+         },
+         "e-learning": {
+          "type": "string"
+         },
+         "environmental services": {
+          "type": "string"
+         },
+         "design": {
+          "type": "string"
+         },
+         "retail": {
+          "type": "string"
+         },
+         "consumer services": {
+          "type": "string"
+         },
+         "telecommunications": {
+          "type": "string"
+         },
+         "staffing & recruiting": {
+          "type": "string"
+         },
+         "entertainment": {
+          "type": "string"
+         }
+        }
+       },
+       "retail_location_count": {
+        "type": "number"
+       },
+       "raw_address": {
+        "type": "string"
+       },
+       "street_address": {
+        "type": "string"
+       },
+       "city": {
+        "type": "string"
+       },
+       "state": {
+        "type": "string"
+       },
+       "postal_code": {
+        "type": "string"
+       },
+       "country": {
+        "type": "string"
+       },
+       "owned_by_organization_id": {
+        "type": "string"
+       },
+       "short_description": {
+        "type": "string"
+       },
+       "suborganizations": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string"
+          },
+          "name": {
+           "type": "string"
+          },
+          "website_url": {
+           "type": "string"
+          }
+         }
+        }
+       },
+       "num_suborganizations": {
+        "type": "number"
+       },
+       "annual_revenue_printed": {
+        "type": "string"
+       },
+       "annual_revenue": {
+        "type": "number"
+       },
+       "total_funding": {
+        "type": "number"
+       },
+       "total_funding_printed": {
+        "type": "string"
+       },
+       "latest_funding_round_date": {
+        "type": "string"
+       },
+       "latest_funding_stage": {
+        "type": "string"
+       },
+       "funding_events": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string"
+          },
+          "date": {
+           "type": "string"
+          },
+          "news_url": {
+           "type": "string"
+          },
+          "type": {
+           "type": "string"
+          },
+          "investors": {
+           "type": "string"
+          },
+          "amount": {
+           "type": "string"
+          },
+          "currency": {
+           "type": "string"
+          }
+         }
+        }
+       },
+       "technology_names": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "current_technologies": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "uid": {
+           "type": "string"
+          },
+          "name": {
+           "type": "string"
+          },
+          "category": {
+           "type": "string"
+          }
+         }
+        }
+       },
+       "org_chart_root_people_ids": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "org_chart_sector": {
+        "type": "string"
+       },
+       "org_chart_removed": {
+        "type": "boolean"
+       },
+       "org_chart_show_department_filter": {
+        "type": "boolean"
+       },
+       "departmental_head_count": {
+        "type": "object",
+        "properties": {
+         "media_and_commmunication": {
+          "type": "number"
+         },
+         "finance": {
+          "type": "number"
+         },
+         "human_resources": {
+          "type": "number"
+         },
+         "support": {
+          "type": "number"
+         },
+         "information_technology": {
+          "type": "number"
+         },
+         "accounting": {
+          "type": "number"
+         },
+         "legal": {
+          "type": "number"
+         },
+         "business_development": {
+          "type": "number"
+         },
+         "engineering": {
+          "type": "number"
+         },
+         "sales": {
+          "type": "number"
+         },
+         "operations": {
+          "type": "number"
+         },
+         "administrative": {
+          "type": "number"
+         },
+         "marketing": {
+          "type": "number"
+         },
+         "product_management": {
+          "type": "number"
+         },
+         "consulting": {
+          "type": "number"
+         },
+         "education": {
+          "type": "number"
+         },
+         "arts_and_design": {
+          "type": "number"
+         },
+         "entrepreneurship": {
+          "type": "number"
+         },
+         "data_science": {
+          "type": "number"
+         }
+        }
+       },
+       "account_id": {
+        "type": "string"
+       },
+       "account": {
+        "type": "object",
+        "properties": {
+         "raw_address": {
+          "type": "string"
+         },
+         "street_address": {
+          "type": "string"
+         },
+         "city": {
+          "type": "string"
+         },
+         "state": {
+          "type": "string"
+         },
+         "country": {
+          "type": "string"
+         },
+         "postal_code": {
+          "type": "string"
+         },
+         "id": {
+          "type": "string"
+         },
+         "domain": {
+          "type": "string"
+         },
+         "name": {
+          "type": "string"
+         },
+         "team_id": {
+          "type": "string"
+         },
+         "organization_id": {
+          "type": "string"
+         },
+         "account_stage_id": {
+          "type": "string"
+         },
+         "source": {
+          "type": "string"
+         },
+         "original_source": {
+          "type": "string"
+         },
+         "creator_id": {
+          "type": "string"
+         },
+         "owner_id": {
+          "type": "string"
+         },
+         "created_at": {
+          "type": "string"
+         },
+         "phone": {
+          "type": "string"
+         },
+         "phone_status": {
+          "type": "string"
+         },
+         "hubspot_id": {
+          "type": "string"
+         },
+         "salesforce_id": {
+          "type": "string"
+         },
+         "crm_owner_id": {
+          "type": "string"
+         },
+         "parent_account_id": {},
+         "linkedin_url": {
+          "type": "string"
+         },
+         "suggested_from_rule_engine_config_id": {},
+         "godmode_apollo_creator": {},
+         "sanitized_phone": {
+          "type": "string"
+         },
+         "account_playbook_statuses": {
+          "type": "array",
+          "items": {}
+         },
+         "existence_level": {
+          "type": "string"
+         },
+         "label_ids": {
+          "type": "array",
+          "items": {
+           "type": "string"
+          }
+         },
+         "typed_custom_fields": {
+          "type": "object",
+          "properties": {
+           "68e963920f93e20019d2f113": {
+            "type": "string"
+           },
+           "68e9636621e3540015e6c012": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            }
+           },
+           "692623117fbe64001974cd3b": {
+            "type": "number"
+           },
+           "69c5795d124dfd0015edaf54": {
+            "type": "string"
+           },
+           "68ae22c7e20e3c000d55111f": {
+            "type": "string"
+           },
+           "69c57a96ebdd03001dd013eb": {
+            "type": "string"
+           },
+           "6764e8a8d4885202b74436e2": {
+            "type": "number"
+           },
+           "68d4bc81d05b7a001577343f": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            }
+           },
+           "68ae2470e4e47900110aa315": {
+            "type": "string"
+           },
+           "68ae2470e4e47900110aa31d": {
+            "type": "string"
+           },
+           "68ae2470e4e47900110aa319": {
+            "type": "string"
+           },
+           "65cf348b14a6a10300ed11be": {
+            "type": "string"
+           },
+           "68ae22eece3f70001dd96bc9": {
+            "type": "number"
+           },
+           "68ae2375b6d32a0019ec972b": {
+            "type": "number"
+           },
+           "69c589ba49dcfd00197bfe8f": {
+            "type": "number"
+           },
+           "69c589ba49dcfd00197bfe94": {
+            "type": "string"
+           },
+           "68ae22fc3b1a0f001695d372": {
+            "type": "string"
+           }
+          }
+         },
+         "custom_field_errors": {
+          "type": "object",
+          "propertyNames": {
+           "type": "string"
+          },
+          "additionalProperties": {}
+         },
+         "modality": {
+          "type": "string"
+         },
+         "source_display_name": {
+          "type": "string"
+         },
+         "crm_record_url": {
+          "type": "string"
+         },
+         "twitter_url": {},
+         "facebook_url": {},
+         "intent_strength": {},
+         "show_intent": {
+          "type": "boolean"
+         },
+         "organization_headcount_six_month_growth": {},
+         "organization_headcount_twelve_month_growth": {},
+         "organization_headcount_twenty_four_month_growth": {},
+         "salesforce_record_url": {
+          "type": "string"
+         },
+         "last_activity_date": {
+          "type": "string"
+         },
+         "outreach_id": {
+          "type": "string"
+         },
+         "outreach_url": {
+          "type": "string"
+         }
+        }
+       },
+       "owned_by_organization": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "type": "string"
+         },
+         "name": {
+          "type": "string"
+         },
+         "website_url": {
+          "type": "string"
+         }
+        }
+       },
+       "market_cap": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  },
+  "findyMail.findEmail": {
+   "input": {
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "domain": {
+      "type": "string"
+     },
+     "linkedinUrl": {
+      "type": "string"
+     }
+    },
+    "required": []
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "number"
+     },
+     "name": {
+      "type": "string"
+     },
+     "email": {
+      "type": "string"
+     },
+     "domain": {
+      "type": "string"
+     },
+     "company": {
+      "type": "string"
+     },
+     "linkedin_url": {
+      "type": "string"
+     },
+     "job_title": {
+      "type": "string"
+     },
+     "company_city": {
+      "type": "string"
+     },
+     "company_region": {
+      "type": "string"
+     },
+     "company_country": {
+      "type": "string"
+     },
+     "city": {
+      "type": "string"
+     },
+     "region": {
+      "type": "string"
+     },
+     "country": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "firecrawl.scrape": {
+   "input": {
+    "properties": {
+     "url": {
+      "type": "string"
+     },
+     "includeFullPage": {
+      "default": false,
+      "type": "boolean"
+     },
+     "formats": {
+      "default": [
+       "markdown"
+      ],
+      "type": "array",
+      "items": {
+       "type": "string",
+       "enum": [
+        "markdown",
+        "html",
+        "rawHtml",
+        "links"
+       ]
+      }
+     }
+    },
+    "required": [
+     "url",
+     "includeFullPage",
+     "formats"
+    ]
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "markdown": {
+      "type": "string"
+     },
+     "html": {
+      "type": "string"
+     },
+     "rawHtml": {
+      "type": "string"
+     },
+     "links": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "metadata": {
+      "type": "object",
+      "properties": {
+       "title": {
+        "type": "string"
+       },
+       "description": {
+        "type": "string"
+       },
+       "language": {
+        "type": "string"
+       },
+       "sourceURL": {
+        "type": "string"
+       },
+       "statusCode": {
+        "type": "number"
+       },
+       "error": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  },
+  "linkedin.enrichCompany": {
+   "input": {
+    "properties": {
+     "linkedinUrl": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "linkedinUrl"
+    ]
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "affiliated_companies": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "company_id": {
+         "type": "string"
+        },
+        "linkedin_url": {
+         "type": "string"
+        },
+        "name": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "company_id": {
+      "type": "string"
+     },
+     "company_name": {
+      "type": "string"
+     },
+     "description": {
+      "type": "string"
+     },
+     "domain": {
+      "type": "string"
+     },
+     "email": {
+      "type": "string"
+     },
+     "employee_count": {
+      "type": "number"
+     },
+     "employee_range": {
+      "type": "string"
+     },
+     "follower_count": {
+      "type": "number"
+     },
+     "funding_info": {
+      "type": "object",
+      "properties": {
+       "crunchbase_url": {
+        "type": "string"
+       },
+       "last_funding_round_amount": {},
+       "last_funding_round_currency": {},
+       "last_funding_round_month": {},
+       "last_funding_round_type": {},
+       "last_funding_round_year": {},
+       "num_funding_rounds": {}
+      }
+     },
+     "hq_address_line1": {
+      "type": "string"
+     },
+     "hq_address_line2": {
+      "type": "string"
+     },
+     "hq_city": {
+      "type": "string"
+     },
+     "hq_country": {
+      "type": "string"
+     },
+     "hq_full_address": {
+      "type": "string"
+     },
+     "hq_postalcode": {
+      "type": "string"
+     },
+     "hq_region": {
+      "type": "string"
+     },
+     "industries": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "linkedin_url": {
+      "type": "string"
+     },
+     "locations": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "city": {
+         "type": "string"
+        },
+        "country": {
+         "type": "string"
+        },
+        "full_address": {
+         "type": "string"
+        },
+        "is_headquarter": {
+         "type": "boolean"
+        },
+        "line1": {
+         "type": "string"
+        },
+        "line2": {
+         "type": "string"
+        },
+        "region": {
+         "type": "string"
+        },
+        "zipcode": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "logo_url": {
+      "type": "string"
+     },
+     "phone": {
+      "type": "string"
+     },
+     "specialties": {
+      "type": "string"
+     },
+     "tagline": {
+      "type": "string"
+     },
+     "website": {
+      "type": "string"
+     },
+     "year_founded": {}
+    }
+   }
+  },
+  "linkedin.enrichCompanyFromDomain": {
+   "input": {
+    "properties": {
+     "domain": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "domain"
+    ]
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "affiliated_companies": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "company_id": {
+         "type": "string"
+        },
+        "linkedin_url": {
+         "type": "string"
+        },
+        "name": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "company_id": {
+      "type": "string"
+     },
+     "company_name": {
+      "type": "string"
+     },
+     "description": {
+      "type": "string"
+     },
+     "domain": {
+      "type": "string"
+     },
+     "email": {
+      "type": "string"
+     },
+     "employee_count": {
+      "type": "number"
+     },
+     "employee_range": {
+      "type": "string"
+     },
+     "follower_count": {
+      "type": "number"
+     },
+     "funding_info": {
+      "type": "object",
+      "properties": {
+       "crunchbase_url": {
+        "type": "string"
+       },
+       "last_funding_round_amount": {},
+       "last_funding_round_currency": {},
+       "last_funding_round_month": {},
+       "last_funding_round_type": {},
+       "last_funding_round_year": {},
+       "num_funding_rounds": {}
+      }
+     },
+     "hq_address_line1": {
+      "type": "string"
+     },
+     "hq_address_line2": {
+      "type": "string"
+     },
+     "hq_city": {
+      "type": "string"
+     },
+     "hq_country": {
+      "type": "string"
+     },
+     "hq_full_address": {
+      "type": "string"
+     },
+     "hq_postalcode": {
+      "type": "string"
+     },
+     "hq_region": {
+      "type": "string"
+     },
+     "industries": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "linkedin_url": {
+      "type": "string"
+     },
+     "locations": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "city": {
+         "type": "string"
+        },
+        "country": {
+         "type": "string"
+        },
+        "full_address": {
+         "type": "string"
+        },
+        "is_headquarter": {
+         "type": "boolean"
+        },
+        "line1": {
+         "type": "string"
+        },
+        "line2": {
+         "type": "string"
+        },
+        "region": {
+         "type": "string"
+        },
+        "zipcode": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "logo_url": {
+      "type": "string"
+     },
+     "phone": {
+      "type": "string"
+     },
+     "specialties": {
+      "type": "string"
+     },
+     "tagline": {
+      "type": "string"
+     },
+     "website": {
+      "type": "string"
+     },
+     "year_founded": {},
+     "confident_score": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "linkedin.enrichProfile": {
+   "input": {
+    "properties": {
+     "linkedinUrl": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "linkedinUrl"
+    ]
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "about": {
+      "type": "string"
+     },
+     "city": {
+      "type": "string"
+     },
+     "company": {
+      "type": "string"
+     },
+     "company_description": {
+      "type": "string"
+     },
+     "company_domain": {
+      "type": "string"
+     },
+     "company_employee_count": {
+      "type": "number"
+     },
+     "company_employee_range": {
+      "type": "string"
+     },
+     "company_industry": {
+      "type": "string"
+     },
+     "company_linkedin_url": {
+      "type": "string"
+     },
+     "company_logo_url": {
+      "type": "string"
+     },
+     "company_website": {
+      "type": "string"
+     },
+     "company_year_founded": {
+      "type": "number"
+     },
+     "connection_count": {
+      "type": "number"
+     },
+     "country": {
+      "type": "string"
+     },
+     "current_company_join_month": {
+      "type": "number"
+     },
+     "current_company_join_year": {
+      "type": "number"
+     },
+     "current_job_duration": {
+      "type": "string"
+     },
+     "educations": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "date_range": {
+         "type": "string"
+        },
+        "degree": {
+         "type": "string"
+        },
+        "end_month": {
+         "type": "number"
+        },
+        "end_year": {
+         "type": "number"
+        },
+        "field_of_study": {
+         "type": "string"
+        },
+        "school": {
+         "type": "string"
+        },
+        "school_id": {
+         "type": "string"
+        },
+        "school_linkedin_url": {
+         "type": "string"
+        },
+        "school_logo_url": {
+         "type": "string"
+        },
+        "start_month": {
+         "type": "number"
+        },
+        "start_year": {
+         "type": "number"
+        }
+       }
+      }
+     },
+     "experiences": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "company": {
+         "type": "string"
+        },
+        "company_id": {
+         "type": "string"
+        },
+        "company_linkedin_url": {
+         "type": "string"
+        },
+        "company_logo_url": {
+         "type": "string"
+        },
+        "date_range": {
+         "type": "string"
+        },
+        "description": {
+         "type": "string"
+        },
+        "duration": {
+         "type": "string"
+        },
+        "end_month": {
+         "type": "number"
+        },
+        "end_year": {
+         "type": "number"
+        },
+        "is_current": {
+         "type": "boolean"
+        },
+        "job_type": {
+         "type": "string"
+        },
+        "location": {
+         "type": "string"
+        },
+        "start_month": {
+         "type": "number"
+        },
+        "start_year": {
+         "type": "number"
+        },
+        "title": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "first_name": {
+      "type": "string"
+     },
+     "follower_count": {
+      "type": "number"
+     },
+     "full_name": {
+      "type": "string"
+     },
+     "headline": {
+      "type": "string"
+     },
+     "hq_city": {
+      "type": "string"
+     },
+     "hq_country": {
+      "type": "string"
+     },
+     "hq_region": {
+      "type": "string"
+     },
+     "job_title": {
+      "type": "string"
+     },
+     "languages": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "last_name": {
+      "type": "string"
+     },
+     "linkedin_url": {
+      "type": "string"
+     },
+     "location": {
+      "type": "string"
+     },
+     "profile_id": {
+      "type": "string"
+     },
+     "profile_image_url": {
+      "type": "string"
+     },
+     "public_id": {
+      "type": "string"
+     },
+     "school": {
+      "type": "string"
+     },
+     "skills": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "state": {
+      "type": "string"
+     },
+     "urn": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "prospeo.findEmail": {
+   "input": {
+    "properties": {
+     "firstName": {
+      "type": "string"
+     },
+     "lastName": {
+      "type": "string"
+     },
+     "fullName": {
+      "type": "string"
+     },
+     "companyDomain": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "companyDomain"
+    ]
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "error": {
+      "type": "boolean"
+     },
+     "free_enrichment": {
+      "type": "boolean"
+     },
+     "person": {
+      "type": "object",
+      "properties": {
+       "person_id": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "first_name": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "last_name": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "full_name": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "linkedin_url": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "current_job_title": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "headline": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "email": {
+        "type": "object",
+        "properties": {
+         "email": {
+          "type": "string"
+         },
+         "status": {
+          "description": "Prospeo's verification status for the email",
+          "type": [
+           "string",
+           "null"
+          ]
+         },
+         "revealed": {
+          "type": [
+           "boolean",
+           "null"
+          ]
+         }
+        },
+        "required": [
+         "email"
+        ]
+       },
+       "mobile": {
+        "type": [
+         "object",
+         "null"
+        ]
+       }
+      },
+      "required": [
+       "email"
+      ]
+     },
+     "company": {
+      "type": [
+       "object",
+       "null"
+      ]
+     }
+    },
+    "required": [
+     "person"
+    ]
+   }
+  },
+  "waterfall.verifyEmail": {
+   "input": {
+    "properties": {
+     "email": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "email"
+    ]
+   },
+   "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "email": {
+      "type": "string"
+     },
+     "domain": {
+      "type": "string"
+     },
+     "email_status": {
+      "type": "string"
+     },
+     "smtp_provider": {
+      "type": "string"
+     },
+     "mx_records": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ }
+}

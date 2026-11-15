@@ -273,6 +273,11 @@ export function emitBody(node: Node, resolve: RefResolver): string {
     case "array": case "index": case "regex":
       throw new FormulaError("Array/index/regex syntax is supported only in input/loader formulas");
     case "method":
+      // The same guarded calls LOWER/UPPER/TRIM already compile to.
+      if (["toLowerCase", "toUpperCase", "trim"].includes(node.method) && !node.args.length) {
+        const r = e(node.receiver);
+        return `(${r} ? ${r}.${node.method}() : ${r})`;
+      }
       throw new FormulaError(`${node.method}() method syntax is supported only in input/loader formulas; Cargo workflow translation needs separate verification`);
     case "ref":
       return resolve(node.name, node.path);

@@ -297,6 +297,22 @@
     {
       "id": "verify-email",
       "job": "Verify / validate email"
+    },
+    {
+      "id": "find-email-full-name",
+      "job": "Find work email from full name + domain"
+    },
+    {
+      "id": "company-from-linkedin",
+      "job": "Enrich company from LinkedIn company URL"
+    },
+    {
+      "id": "apollo-enrich-organization",
+      "job": "Enrich company from domain (Apollo)"
+    },
+    {
+      "id": "scrape-website",
+      "job": "Scrape a web page to text"
     }
   ]
 }

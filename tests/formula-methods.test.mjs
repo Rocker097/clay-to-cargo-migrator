@@ -35,7 +35,9 @@ test('unsupported properties, methods and arguments are blocked',()=>{
  for(const formula of ['{{@Domain}}.unknown','{{@Domain}}.length.unknown','{{@Domain}}.execute()','{{@Domain}}.toUpperCase("x")']) {
   assert.equal(plan(formula).columns[1].generated,false,formula);
  }
- assert.throws(()=>emitBody(parseFormula('{{@Domain}}?.toUpperCase()'),()=> 'input.domain'),/only in input/);
+ // Case and trim calls compile to the same guarded form as UPPER()/LOWER()/TRIM().
+ assert.equal(emitBody(parseFormula('{{@Domain}}?.toUpperCase()'),()=> 'input.domain'),'(input.domain ? input.domain.toUpperCase() : input.domain)');
+ assert.throws(()=>emitBody(parseFormula('{{@Domain}}.split("@")'),()=> 'input.domain'),/only in input/);
 });
 test('method and length dependencies remain ordered with downstream calculations',()=>{
  const columns=[column('Followup','{{@Ready}} ? 1 : 7'),column('Ready','{{@Length}} >= 9'),column('Length','{{@Domain}}?.length'),column('Upper','{{@Domain}}?.toUpperCase()'),{index:0,name:'Domain',type:'text'}];

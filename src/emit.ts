@@ -262,8 +262,9 @@ ${aiFieldNames(c).map((f) => `      ${f}: result.answer.${f},`).join("\n")}
         : value;
       return `      ${a.cargoField}: ${expr},`;
     }).join("\n");
+    const constants = Object.entries(c.mapping!.constants ?? {}).map(([k, v]) => `      ${k}: ${JSON.stringify(v)}, // fixed: no Clay input`).join("\n");
     call = `    const result = uses.${uses}.${c.mapping!.action}({
-${args}
+${[args, constants].filter(Boolean).join("\n")}
     });
 
     return {
@@ -271,9 +272,11 @@ ${args}
 ${outputs.map(([f]) => {
   const path = c.mapping!.outputPaths?.[f];
   if (!path) return `      ${f}: result.${f},`;
-  let expression = `result.${path.join(".")}`;
+  // Numeric steps are array positions: result.experiences[3].title.
+  const access = (steps: string[]) => "result" + steps.map(p => /^\d+$/.test(p) ? `[${p}]` : `.${p}`).join("");
+  let expression = access(path);
   for (let i = path.length; i > 0; i--) {
-    const prefix = `result.${path.slice(0, i).join(".")}`;
+    const prefix = access(path.slice(0, i));
     expression = `(${prefix} ? ${expression} : "")`;
   }
   return `      ${f}: ${expression},`;

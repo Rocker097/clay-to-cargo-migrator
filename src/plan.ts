@@ -99,6 +99,9 @@ export interface MigrationPlan {
 
 class Blocked extends Error {}
 
+/** A binding that reads a LinkedIn URL: "linkedin", or "LI URL"/"LI profile". */
+const LINKEDIN_HINT = /linkedin|\bli[ _-]?(url|profile)\b/i;
+
 export interface MappingOverrides {
   /** Exact Clay action key to an existing verified mapping ID. */
   actions?: Record<string, string | { adapter: string; inputAliases?: Record<string,string>; outputAliases?: Record<string,string> }>;
@@ -271,6 +274,8 @@ const AI_SCALAR: Record<string, "string" | "number" | "boolean"> = {
   string: "string", text: "string", str: "string",
   number: "number", integer: "number", int: "number", float: "number", decimal: "number",
   boolean: "boolean", bool: "boolean", checkbox: "boolean",
+  // Clay field types that are text underneath.
+  url: "string", email: "string", date: "string", select: "string",
 };
 
 /**
@@ -439,6 +444,19 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
   const knownFirst = !adapterId && !ai ? findKnownJob(actionKey, inputNames, true) : undefined;
   let mapping = adapterId ? ACTION_MAPPINGS.find(m => m.id === adapterId) : ai || knownFirst ? undefined : findMapping(actionKey, inputNames);
   if (override && !mapping) throw new Error(`Unknown mapping ID: ${adapterId}`);
+  // Clay's company_identifier takes a domain or a LinkedIn company URL. A
+  // LinkedIn URL normalized to a domain becomes "linkedin.com", so when the
+  // binding plainly reads a LinkedIn URL, use the LinkedIn-URL action.
+  if (!adapterId && mapping?.id === "company-from-domain") {
+    const identifier = (ts.inputsBinding ?? []).find(b => normalizeBindingName(b.name) === "company_identifier");
+    if (identifier && LINKEDIN_HINT.test(identifier.formulaText ?? "")) mapping = ACTION_MAPPINGS.find(m => m.id === "company-from-linkedin");
+  }
+  // Mixrank's person_identifier may be an email or a LinkedIn URL. Only a
+  // binding that plainly reads a LinkedIn URL goes to enrichProfile.
+  if (!adapterId && mapping?.id === "person-from-linkedin") {
+    const identifier = (ts.inputsBinding ?? []).find(b => normalizeBindingName(b.name) === "person_identifier");
+    if (identifier && !LINKEDIN_HINT.test(identifier.formulaText ?? "")) mapping = undefined;
+  }
   if (mapping && typeof override === "object") {
     mapping = { ...mapping,
       params: mapping.params.map(p => ({...p, clayAliases: override.inputAliases?.[p.cargoField] ? [normalizeBindingName(override.inputAliases[p.cargoField])] : p.clayAliases})),
@@ -492,9 +510,22 @@ function planAction(col: PlannedColumn, byName: Map<string, PlannedColumn>, over
       col.toolParams.push({ name: p.cargoField, playExpr: expr, zod: "z.string().optional()", from: `Clay input "${b.name}": ${b.formulaText}` });
       col.actionArgs.push({ cargoField: p.cargoField, param: p.cargoField });
     }
+    const usedFormulas = new Set(bindings.filter(b => used.has(b.name)).map(b => (b.formulaText ?? "").trim()));
+    const dropped: string[] = [];
     for (const b of bindings) {
-      if (!used.has(b.name)) throw new Blocked(`Clay input "${b.name}" has no matching field on the Cargo action; refusing to drop configuration.`);
+      if (used.has(b.name)) continue;
+      const formula = (b.formulaText ?? "").trim();
+      // Clay fans one value out under many alias names (name, fullName,
+      // full_name...). A copy of a value already passed loses nothing.
+      if (formula && usedFormulas.has(formula)) continue;
+      if (mapping.droppedSettings?.includes(normalizeBindingName(b.name))) {
+        if (formula) dropped.push(`${b.name}: ${formula}`);
+        continue;
+      }
+      if (!formula) continue;
+      throw new Blocked(`Clay input "${b.name}" has no matching field on the Cargo action; refusing to drop configuration.`);
     }
+    if (dropped.length) col.verify.push(`Clay settings with no ${mapping.connector.integration}.${mapping.action} equivalent were dropped: ${dropped.join("; ")}.`);
   } else {
     // AI column: the prompt is text with {{@Column}} references in it.
     const configured = (value: unknown) => value !== undefined && value !== null && value !== "";

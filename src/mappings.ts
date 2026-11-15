@@ -42,6 +42,13 @@ export interface ActionMapping {
   recipeNote?: string;
   /** Where the input signature was confirmed. */
   provenance: string;
+  /** Fixed arguments the Cargo action requires that Clay has no input for. */
+  constants?: Record<string, unknown>;
+  /**
+   * Clay settings with no Cargo field. They are dropped and listed for
+   * review instead of blocking the column.
+   */
+  droppedSettings?: string[];
 }
 
 const has = (key: string, ...words: string[]) => words.every((w) => key.includes(w));
@@ -49,13 +56,25 @@ const any = (key: string, ...words: string[]) => words.some((w) => key.includes(
 
 const FIRST = ["first_name", "firstname", "first"];
 const LAST = ["last_name", "lastname", "last"];
+const FULL = ["name", "full_name", "fullname"];
+
+// Clay's person enrichments return `experience[]` with company, title and
+// url (the company's LinkedIn URL). linkedin.enrichProfile returns
+// `experiences[]` with company, title and company_linkedin_url (workspace
+// schema). Only these three fields have a counterpart; the first five
+// positions are exposed as flat tool outputs (experience_0_company...).
+const EXPERIENCE_FIELDS: Record<string, string> = { company: "company", title: "title", url: "company_linkedin_url" };
+const EXPERIENCE_SLOTS = [0, 1, 2, 3, 4];
+const EXPERIENCE_OUTPUTS = Object.fromEntries(EXPERIENCE_SLOTS.flatMap(i => Object.keys(EXPERIENCE_FIELDS).map(f => [`experience_${i}_${f}`, "string" as const])));
+const EXPERIENCE_PATHS = Object.fromEntries(EXPERIENCE_SLOTS.flatMap(i => Object.entries(EXPERIENCE_FIELDS).map(([f, cargo]) => [`experience_${i}_${f}`, ["experiences", String(i), cargo]])));
+const EXPERIENCE_SYNONYMS = Object.fromEntries(EXPERIENCE_SLOTS.flatMap(i => Object.keys(EXPERIENCE_FIELDS).map(f => [`experience.${i}.${f}`, `experience_${i}_${f}`])));
 const DOMAIN = ["company_identifier", "domain", "company_domain", "companydomain", "website", "company_website", "url"];
 
 export const ACTION_MAPPINGS: ActionMapping[] = [
   {
     id: "company-from-domain",
     job: "Enrich company from domain",
-    match: (k) => any(k, "company", "firmographic", "organization", "org-") && any(k, "enrich", "lookup", "find", "data") && !any(k, "email", "person", "people", "employee-search"),
+    match: (k) => any(k, "company", "firmographic", "organization", "org-") && any(k, "enrich", "lookup", "find", "data") && !any(k, "email", "person", "people", "employee-search", "apollo"),
     connector: { varName: "linkedin", slug: "linkedin", integration: "linkedin" },
     action: "enrichCompanyFromDomain",
     params: [{ cargoField: "domain", clayAliases: DOMAIN, required: true }],
@@ -88,14 +107,21 @@ export const ACTION_MAPPINGS: ActionMapping[] = [
     match: (k) => any(k, "person", "profile", "people") && any(k, "linkedin", "enrich") && !any(k, "email"),
     connector: { varName: "linkedin", slug: "linkedin", integration: "linkedin" },
     action: "enrichProfile",
-    params: [{ cargoField: "linkedinUrl", clayAliases: ["linkedin_url", "linkedinurl", "linkedin", "profile_url", "url"], required: true }],
+    // person_identifier: Mixrank's v2 input. Only used when it reads a
+    // LinkedIn URL (checked in planAction).
+    params: [{ cargoField: "linkedinUrl", clayAliases: ["linkedin_url", "linkedinurl", "linkedin", "profile_url", "url", "person_identifier"], required: true }],
     primaryField: "linkedin_url",
-    knownOutputs: { profile_id: "string", job_title: "string", linkedin_url: "string" },
-    fieldSynonyms: { title: "job_title", headline: "job_title", id: "profile_id" },
+    knownOutputs: {
+      profile_id: "string", job_title: "string", linkedin_url: "string", full_name: "string", first_name: "string",
+      last_name: "string", headline: "string", company: "string", company_domain: "string", company_linkedin_url: "string",
+      ...EXPERIENCE_OUTPUTS,
+    },
+    outputPaths: EXPERIENCE_PATHS,
+    fieldSynonyms: { title: "job_title", id: "profile_id", name: "full_name", url: "linkedin_url", ...EXPERIENCE_SYNONYMS },
     credits: 0.25,
     recipeNote:
       "Cargo's clay-to-cargo recipe prefers `aiArk.enrichPerson` (0.1 credits, also returns a verified email, bills 0 on a miss) for rows that already carry a LinkedIn URL. Not generated here because its input signature is not confirmed in Cargo source; worth switching once verified, and running email finders only on the misses.",
-    provenance: "gtm-skills: crm-enrichment/infra/tools/contact-linkedin-enrichment.ts",
+    provenance: "gtm-skills: crm-enrichment/infra/tools/contact-linkedin-enrichment.ts; outputs re-checked against the Cargo workspace connector schema (cargo-ai connection integration list, exported 2026-11-15)",
   },
   {
     id: "find-email-prospeo",
@@ -103,9 +129,12 @@ export const ACTION_MAPPINGS: ActionMapping[] = [
     match: (k) => has(k, "prospeo") && any(k, "email"),
     connector: { varName: "prospeo", slug: "prospeo", integration: "prospeo" },
     action: "findEmail",
+    // Workspace schema: only companyDomain is required; a name comes either
+    // as first + last or as fullName, which is what Clay's v2 action sends.
     params: [
-      { cargoField: "firstName", clayAliases: FIRST, required: true },
-      { cargoField: "lastName", clayAliases: LAST, required: true },
+      { cargoField: "firstName", clayAliases: FIRST, required: false },
+      { cargoField: "lastName", clayAliases: LAST, required: false },
+      { cargoField: "fullName", clayAliases: FULL, required: false },
       { cargoField: "companyDomain", clayAliases: DOMAIN, required: true },
     ],
     primaryField: "email",
@@ -113,7 +142,7 @@ export const ACTION_MAPPINGS: ActionMapping[] = [
     outputPaths: { email: ["person", "email", "email"] },
     fieldSynonyms: { work_email: "email" },
     credits: 0.5,
-    provenance: "gtm-skills: clay-to-cargo/SKILL.md (CLI example; note it takes companyDomain)",
+    provenance: "gtm-skills: clay-to-cargo/SKILL.md; inputs and output path re-checked against the Cargo workspace connector schema (cargo-ai connection integration list, exported 2026-11-15)",
   },
   {
     // Cargo's recipe: "Find work email, name + domain -> FullEnrich.findEmail".
@@ -143,10 +172,83 @@ export const ACTION_MAPPINGS: ActionMapping[] = [
     connector: { varName: "waterfall", slug: "waterfall", integration: "waterfall" },
     action: "verifyEmail",
     params: [{ cargoField: "email", clayAliases: ["email", "work_email", "email_address"], required: true }],
-    knownOutputs: {},
-    fieldSynonyms: {},
+    primaryField: "email_status",
+    knownOutputs: { email: "string", email_status: "string" },
+    fieldSynonyms: { status: "email_status" },
     credits: 0.1,
-    provenance: "gtm-skills: clay-to-cargo/SKILL.md (CLI example)",
+    recipeNote: "Clay's validation status values and Waterfall's `email_status` values are different vocabularies; compare them in parity before relying on downstream conditions.",
+    provenance: "gtm-skills: clay-to-cargo/SKILL.md; outputs from the Cargo workspace connector schema (cargo-ai connection integration list, exported 2026-11-15)",
+  },
+  {
+    // Clay's v2 email finders send a full name plus a domain. FindyMail is
+    // the workspace action that takes exactly that; FullEnrich and
+    // LeadMagic need first and last name, which the migrator will not
+    // invent by splitting strings.
+    id: "find-email-full-name",
+    job: "Find work email from full name + domain",
+    match: (k) => any(k, "email") && any(k, "find", "finder", "lookup", "search", "enrich") && !any(k, "verif", "valid", "send"),
+    connector: { varName: "findyMail", slug: "findymail", integration: "findyMail" },
+    action: "findEmail",
+    params: [
+      { cargoField: "name", clayAliases: FULL, required: true },
+      { cargoField: "domain", clayAliases: DOMAIN, required: true },
+    ],
+    primaryField: "email",
+    knownOutputs: { email: "string", name: "string", domain: "string", linkedin_url: "string", job_title: "string" },
+    fieldSynonyms: { work_email: "email" },
+    credits: 0.5,
+    provenance: "Cargo workspace connector schema (cargo-ai connection integration list, exported 2026-11-15)",
+  },
+  {
+    id: "company-from-linkedin",
+    job: "Enrich company from LinkedIn company URL",
+    // Chosen by input, not keywords: see planAction (company_identifier
+    // bound to a LinkedIn URL). Never matched by action key alone.
+    match: () => false,
+    connector: { varName: "linkedin", slug: "linkedin", integration: "linkedin" },
+    action: "enrichCompany",
+    params: [{ cargoField: "linkedinUrl", clayAliases: ["company_identifier", "linkedin_url", "linkedinurl", "company_linkedin_url"], required: true }],
+    primaryField: "company_name",
+    knownOutputs: { company_id: "string", company_name: "string", domain: "string", website: "string", linkedin_url: "string", employee_count: "number", description: "string", hq_country: "string" },
+    fieldSynonyms: { name: "company_name", company: "company_name", employees: "employee_count", headcount: "employee_count", size: "employee_count", country: "hq_country", linkedin: "linkedin_url" },
+    credits: 0.25,
+    provenance: "Cargo workspace connector schema (cargo-ai connection integration list, exported 2026-11-15)",
+  },
+  {
+    id: "apollo-enrich-organization",
+    job: "Enrich company from domain (Apollo)",
+    match: (k) => has(k, "apollo") && any(k, "company", "organization") && any(k, "enrich"),
+    connector: { varName: "apolloio", slug: "apolloio", integration: "apolloio" },
+    action: "enrichOrganization",
+    params: [{ cargoField: "domain", clayAliases: DOMAIN, required: true }],
+    primaryField: "name",
+    knownOutputs: {
+      name: "string", website_url: "string", linkedin_url: "string", primary_domain: "string", industry: "string",
+      country: "string", founded_year: "number", estimated_num_employees: "number", total_funding: "number",
+      latest_funding_stage: "string", latest_funding_round_date: "string",
+    },
+    // Clay's Apollo output nests everything under `organization`, the
+    // same as the Cargo action's response.
+    outputPaths: Object.fromEntries(["name", "website_url", "linkedin_url", "primary_domain", "industry", "country", "founded_year", "estimated_num_employees", "total_funding", "latest_funding_stage", "latest_funding_round_date"].map(f => [f, ["organization", f]])),
+    fieldSynonyms: Object.fromEntries(["name", "website_url", "linkedin_url", "primary_domain", "industry", "country", "founded_year", "estimated_num_employees", "total_funding", "latest_funding_stage", "latest_funding_round_date"].map(f => [`organization.${f}`, f])),
+    credits: 1,
+    provenance: "Cargo workspace connector schema (cargo-ai connection integration list, exported 2026-11-15)",
+  },
+  {
+    id: "scrape-website",
+    job: "Scrape a web page to text",
+    match: (k) => any(k, "scrape") && !any(k, "linkedin", "facebook", "instagram", "tiktok", "twitter", "youtube", "list"),
+    connector: { varName: "firecrawl", slug: "firecrawl", integration: "firecrawl" },
+    action: "scrape",
+    params: [{ cargoField: "url", clayAliases: ["url", "website", "page_url"], required: true }],
+    constants: { includeFullPage: false, formats: ["markdown"] },
+    droppedSettings: ["waitfor", "keepnontext", "outputfields", "customregex", "enablejavascriptrendering", "autoparse", "htmloutputfields_outputfields", "js_render", "premium_proxy", "proxy_country"],
+    primaryField: "markdown",
+    knownOutputs: { markdown: "string" },
+    fieldSynonyms: { bodyText: "markdown", body_text: "markdown", text: "markdown" },
+    credits: 0.05,
+    recipeNote: "Clay's `bodyText` is plain page text; Firecrawl returns the main content as markdown. Close enough for AI prompts, not byte-identical.",
+    provenance: "Cargo workspace connector schema (cargo-ai connection integration list, exported 2026-11-15)",
   },
 ];
 
